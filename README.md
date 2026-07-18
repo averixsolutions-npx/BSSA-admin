@@ -1,36 +1,71 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# NWSF Admin Panel
 
-## Getting Started
+Internal admin panel for the National Winter Sports Federation (Bhartiya Ski & Snowboard Association) platform. Built with Next.js 14 (App Router), TypeScript, Tailwind + shadcn/ui, TanStack Query, and Zustand. Talks to the NWSF backend API.
 
-First, run the development server:
+## Stack
+
+- **Next.js 14** App Router, strict TypeScript
+- **Tailwind CSS** + **shadcn/ui** (vendored components in `components/ui`)
+- **TanStack Query** for server state, **TanStack Table** for data grids
+- **React Hook Form** + **Zod** for forms/validation
+- **Zustand** auth store with in-memory access token + httpOnly refresh cookie
+- **TipTap** rich text editor, **dnd-kit** drag-to-reorder
+- **Sonner** toasts, **lucide-react** icons
+
+## Getting started
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env.local   # adjust NEXT_PUBLIC_API_URL if needed
+npm run dev                  # http://localhost:3001
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The backend must be running on `http://localhost:4000` (see the backend repo). Its `ALLOWED_ORIGINS` must include `http://localhost:3001`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Script | Purpose |
+|---|---|
+| `npm run dev` | Dev server on port 3001 |
+| `npm run build` | Production build |
+| `npm run start` | Serve production build on port 3001 |
+| `npm run lint` | ESLint |
+| `npm run test:e2e` | Playwright E2E suite (needs `ADMIN_PASSWORD`) |
+| `npm run test:e2e:headed` | E2E with a visible browser |
+| `npm run test:e2e:ui` | Playwright interactive UI |
 
-## Learn More
+## Environment variables
 
-To learn more about Next.js, take a look at the following resources:
+Only two, both public (client-side):
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Variable | Example |
+|---|---|
+| `NEXT_PUBLIC_API_URL` | `http://localhost:4000/api/v1` |
+| `NEXT_PUBLIC_SITE_URL` | `http://localhost:3000` |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+See `.env.example` (dev) and `.env.production.example` (prod). All secrets live on the backend VPS.
 
-## Deploy on Vercel
+## Structure
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```
+app/
+  (app)/            authenticated area (sidebar + auth guard)
+    dashboard/  hero/  news/  events/  disciplines/  programs/
+    media/  committee/  state-associations/  about/  stats/
+    athletes/  associations/  enquiries/  newsletter/
+  login/            public login route
+components/
+  ui/               shadcn base components
+  <blocks>          DataTable, FileDropzone, RichTextEditor, ConfirmDialog,
+                    ReorderableList, StatusBadge, PageHeader, FormField, sidebar, topbar
+lib/
+  api-client.ts     typed fetch wrapper with auto token-refresh
+  auth-store.ts     Zustand auth store
+  types.ts          API contract types
+  services/         per-module API service files
+e2e/                Playwright tests
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Deployment
+
+Deployed to Vercel at `admin.<domain>`. Root directory is `.` (standalone project). Set the two `NEXT_PUBLIC_*` env vars in the Vercel dashboard and add the admin domain to the backend's `ALLOWED_ORIGINS`. See `DEPLOYMENT-CHECKLIST.md`.
