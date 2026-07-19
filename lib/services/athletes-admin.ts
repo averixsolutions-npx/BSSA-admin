@@ -11,6 +11,7 @@ export const athletesAdminService = {
       state: params.state || undefined,
       isPublished: params.isPublished,
     }),
+  getById: (id: string) => api.get<AthleteProfile>(`/admin/athletes/${id}`),
   setPublished: (id: string, isPublished: boolean) =>
     api.patch<AthleteProfile>(`/admin/athletes/${id}/publish`, { isPublished }),
   setStatus: (id: string, status: "ACTIVE" | "SUSPENDED" | "BLACKLISTED", reason?: string) =>

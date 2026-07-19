@@ -221,6 +221,68 @@ export interface AssociationProfile {
   };
 }
 
+// ─── Athlete documents & achievements ─────────────────
+
+export type AthleteDocumentType =
+  | "AADHAAR"
+  | "PAN"
+  | "TENTH_MARKSHEET"
+  | "PASSPORT"
+  | "HEALTH_INSURANCE"
+  | "ANTI_DOPING_DECLARATION"
+  | "FITNESS_CERTIFICATE";
+
+export const MANDATORY_DOCUMENT_TYPES: AthleteDocumentType[] = ["AADHAAR", "PAN", "TENTH_MARKSHEET"];
+export const OPTIONAL_DOCUMENT_TYPES: AthleteDocumentType[] = [
+  "PASSPORT",
+  "HEALTH_INSURANCE",
+  "ANTI_DOPING_DECLARATION",
+  "FITNESS_CERTIFICATE",
+];
+export const ALL_DOCUMENT_TYPES: AthleteDocumentType[] = [...MANDATORY_DOCUMENT_TYPES, ...OPTIONAL_DOCUMENT_TYPES];
+
+export const DOCUMENT_TYPE_LABELS: Record<AthleteDocumentType, string> = {
+  AADHAAR: "Aadhaar Card",
+  PAN: "PAN Card",
+  TENTH_MARKSHEET: "10th Mark Sheet",
+  PASSPORT: "Passport",
+  HEALTH_INSURANCE: "Health Insurance Certificate",
+  ANTI_DOPING_DECLARATION: "Anti-Doping Declaration",
+  FITNESS_CERTIFICATE: "Fitness Certificate",
+};
+
+export type VerificationStatus = "PENDING" | "APPROVED" | "REJECTED";
+
+export interface AthleteDocument {
+  id: string;
+  athleteProfileId: string;
+  type: AthleteDocumentType;
+  fileKey: string;
+  status: VerificationStatus;
+  reviewNote: string | null;
+  reviewedAt: string | null;
+  reviewedByAdminId: string | null;
+  uploadedAt: string;
+  updatedAt: string;
+  viewUrl: string; // presigned — fresh on every fetch, treat as short-lived
+}
+
+export interface AthleteAchievement {
+  id: string;
+  athleteProfileId: string;
+  title: string;
+  year: number;
+  description: string | null;
+  proofFileKey: string;
+  status: VerificationStatus;
+  reviewNote: string | null;
+  reviewedAt: string | null;
+  reviewedByAdminId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  viewUrl: string;
+}
+
 export interface Enquiry {
   id: string;
   name: string;

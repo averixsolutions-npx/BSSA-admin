@@ -1,10 +1,11 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { MoreHorizontal, Ban, ShieldAlert, RotateCcw } from "lucide-react";
+import { MoreHorizontal, Ban, ShieldAlert, RotateCcw, FileText } from "lucide-react";
 
 import { athletesAdminService } from "@/lib/services/athletes-admin";
 import type { AthleteProfile } from "@/lib/types";
@@ -19,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 
 export default function AthletesListPage() {
+  const router = useRouter();
   const qc = useQueryClient();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
@@ -90,6 +92,11 @@ export default function AthletesListPage() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => router.push(`/athletes/${a.id}`)}>
+                <FileText className="mr-2 h-4 w-4" />
+                View documents
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               {status === "ACTIVE" ? (
                 <>
                   <DropdownMenuItem onClick={() => setModerating({ athlete: a, action: "SUSPENDED" })}>
