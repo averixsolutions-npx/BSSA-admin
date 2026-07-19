@@ -6,6 +6,7 @@ import {
   Trophy,
   BookOpen,
   Video,
+  Megaphone,
   Users,
   MapPin,
   FileText,
@@ -42,6 +43,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Disciplines", href: "/disciplines", icon: Trophy },
       { label: "Programs", href: "/programs", icon: BookOpen },
       { label: "Media", href: "/media", icon: Video },
+      { label: "Announcements", href: "/announcements", icon: Megaphone },
     ],
   },
   {

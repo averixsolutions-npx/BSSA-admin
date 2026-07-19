@@ -29,6 +29,7 @@ export type ApiResponse<T> = ApiSuccess<T> | ApiError;
 export type ContentStatus = "DRAFT" | "PUBLISHED";
 export type MediaPlatform = "YOUTUBE" | "INSTAGRAM" | "TWITTER" | "FACEBOOK" | "VIMEO";
 export type AccountRole = "ATHLETE" | "ASSOCIATION" | "ADMIN";
+export type AccountStatus = "ACTIVE" | "SUSPENDED" | "BLACKLISTED";
 
 export interface AdminAccount {
   id: string;
@@ -44,6 +45,16 @@ export interface HeroSlide {
   ctaHref: string | null;
   sortOrder: number;
   status: ContentStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Announcement {
+  id: string;
+  text: string;
+  href: string | null;
+  isActive: boolean;
+  sortOrder: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -165,6 +176,7 @@ export interface AboutContent {
 export interface AthleteProfile {
   id: string;
   accountId: string;
+  bssaId: string | null;
   fullName: string;
   dob: string;
   gender: string;
@@ -175,24 +187,38 @@ export interface AthleteProfile {
   isPublished: boolean;
   createdAt: string;
   updatedAt: string;
-  account?: { mobile: string; email: string | null; mobileVerified: boolean };
+  account?: {
+    mobile: string;
+    email: string | null;
+    mobileVerified: boolean;
+    status: AccountStatus;
+    statusReason: string | null;
+  };
 }
 
 export interface AssociationProfile {
   id: string;
   accountId: string;
+  bssaId: string | null;
   name: string;
   state: string;
   incorporationNumber: string | null;
   contactPerson: string;
   contactMobile: string;
+  president: string | null;
+  treasurer: string | null;
   email: string | null;
   address: string | null;
   logoUrl: string | null;
   isPublished: boolean;
   createdAt: string;
   updatedAt: string;
-  account?: { mobile: string; email: string | null };
+  account?: {
+    mobile: string;
+    email: string | null;
+    status: AccountStatus;
+    statusReason: string | null;
+  };
 }
 
 export interface Enquiry {

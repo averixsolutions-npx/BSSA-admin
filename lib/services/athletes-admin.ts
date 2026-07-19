@@ -13,5 +13,7 @@ export const athletesAdminService = {
     }),
   setPublished: (id: string, isPublished: boolean) =>
     api.patch<AthleteProfile>(`/admin/athletes/${id}/publish`, { isPublished }),
+  setStatus: (id: string, status: "ACTIVE" | "SUSPENDED" | "BLACKLISTED", reason?: string) =>
+    api.patch<AthleteProfile>(`/admin/athletes/${id}/status`, { status, reason }),
   remove: (id: string) => api.delete(`/admin/athletes/${id}`),
 };

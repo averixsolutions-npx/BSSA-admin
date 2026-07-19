@@ -12,5 +12,7 @@ export const associationsAdminService = {
     }),
   setPublished: (id: string, isPublished: boolean) =>
     api.patch<AssociationProfile>(`/admin/associations/${id}/publish`, { isPublished }),
+  setStatus: (id: string, status: "ACTIVE" | "SUSPENDED" | "BLACKLISTED", reason?: string) =>
+    api.patch<AssociationProfile>(`/admin/associations/${id}/status`, { status, reason }),
   remove: (id: string) => api.delete(`/admin/associations/${id}`),
 };

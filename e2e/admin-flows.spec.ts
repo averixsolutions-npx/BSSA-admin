@@ -27,7 +27,7 @@ test.describe.serial("Admin Panel E2E", () => {
 
   test("1.1 — Login page loads", async ({ page }) => {
     await page.goto("/login");
-    await expect(page.locator("text=NWSF Admin")).toBeVisible();
+    await expect(page.locator("text=BSSA Admin")).toBeVisible();
     await expect(page.locator('input[id="username"]')).toBeVisible();
     await expect(page.locator('input[id="password"]')).toBeVisible();
   });

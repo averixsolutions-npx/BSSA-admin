@@ -3,7 +3,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  title: "NWSF Admin",
+  title: "BSSA Admin",
   description: "National Winter Sports Federation — admin panel",
 };
 
