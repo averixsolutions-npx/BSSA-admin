@@ -59,6 +59,21 @@ export default function AthletesListPage() {
         <span className="font-mono text-xs">{row.original.bssaId ?? "—"}</span>
       ),
     },
+    {
+      header: "",
+      id: "photo",
+      cell: ({ row }) => {
+        const url = row.original.photoUrl;
+        return (
+          <div className="h-8 w-8 rounded-full overflow-hidden bg-muted shrink-0">
+            {url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={url} alt="" className="h-full w-full object-cover" />
+            ) : null}
+          </div>
+        );
+      },
+    },
     { header: "Name", accessorKey: "fullName", cell: ({ row }) => <span className="font-medium">{row.original.fullName}</span> },
     { header: "Discipline", accessorKey: "discipline", cell: ({ row }) => <span className="text-muted-foreground">{row.original.discipline}</span> },
     { header: "State", accessorKey: "state", cell: ({ row }) => <span className="text-muted-foreground">{row.original.state}</span> },

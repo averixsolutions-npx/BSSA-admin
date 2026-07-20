@@ -91,17 +91,27 @@ export default function AthleteDetailPage() {
         <ArrowLeft className="h-4 w-4" />Back to athletes
       </Button>
 
-      <PageHeader
-        title={profile.fullName}
-        description={
-          <div className="flex flex-wrap items-center gap-2 mt-1">
-            {profile.bssaId && <span className="font-mono text-xs px-2 py-0.5 rounded bg-muted">{profile.bssaId}</span>}
-            <AccountStatusBadge status={profile.account?.status} />
-            <Badge variant={profile.isPublished ? "success" : "secondary"}>{profile.isPublished ? "Published" : "Not published"}</Badge>
-            <span className="text-sm text-muted-foreground">{profile.discipline} · {profile.state}</span>
-          </div>
-        }
-      />
+      <div className="flex items-center gap-4">
+        <div className="h-16 w-16 rounded-full overflow-hidden bg-muted shrink-0 border">
+          {profile.photoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={profile.photoUrl} alt={profile.fullName} className="h-full w-full object-cover" />
+          ) : (
+            <div className="h-full w-full flex items-center justify-center text-muted-foreground text-xs">No photo</div>
+          )}
+        </div>
+        <PageHeader
+          title={profile.fullName}
+          description={
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              {profile.bssaId && <span className="font-mono text-xs px-2 py-0.5 rounded bg-muted">{profile.bssaId}</span>}
+              <AccountStatusBadge status={profile.account?.status} />
+              <Badge variant={profile.isPublished ? "success" : "secondary"}>{profile.isPublished ? "Published" : "Not published"}</Badge>
+              <span className="text-sm text-muted-foreground">{profile.discipline} · {profile.state}</span>
+            </div>
+          }
+        />
+      </div>
 
       {/* Publish readiness */}
       <div className={`rounded-lg border p-4 text-sm ${readyToPublish ? "border-emerald-500/30 bg-emerald-500/5" : "border-amber-500/30 bg-amber-500/5"}`}>

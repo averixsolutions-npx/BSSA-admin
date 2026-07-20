@@ -184,6 +184,7 @@ export interface AthleteProfile {
   state: string;
   address: string | null;
   photoUrl: string | null;
+  coverUrl: string | null;
   isPublished: boolean;
   createdAt: string;
   updatedAt: string;
@@ -210,6 +211,7 @@ export interface AssociationProfile {
   email: string | null;
   address: string | null;
   logoUrl: string | null;
+  coverUrl: string | null;
   isPublished: boolean;
   createdAt: string;
   updatedAt: string;
