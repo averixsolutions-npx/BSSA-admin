@@ -2,7 +2,7 @@
 import { useRouter, useParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Loader2, Eye, EyeOff, Trash2 } from "lucide-react";
+import { Loader2, Eye, EyeOff, Trash2, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 
 import { announcementsService } from "@/lib/services/announcements";
@@ -52,6 +52,9 @@ export default function EditAnnouncementPage() {
 
   return (
     <div className="space-y-6">
+      <Button variant="ghost" size="sm" onClick={() => router.back()} className="-ml-2 mb-1">
+        <ArrowLeft className="h-4 w-4" /> Back
+      </Button>
       <PageHeader
         title="Edit announcement"
         description={<Badge variant={item.isActive ? "success" : "secondary"}>{item.isActive ? "Active" : "Hidden"}</Badge>}

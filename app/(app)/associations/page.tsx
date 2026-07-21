@@ -105,10 +105,12 @@ export default function AssociationsListPage() {
       cell: ({ row }) => {
         const assoc = row.original;
         return (
-          <Switch
-            checked={assoc.isPublished}
-            onCheckedChange={(checked) => { publishMutation.mutate({ id: assoc.id, isPublished: checked }); }}
-          />
+          <span onClick={(e) => e.stopPropagation()}>
+            <Switch
+              checked={assoc.isPublished}
+              onCheckedChange={(checked) => { publishMutation.mutate({ id: assoc.id, isPublished: checked }); }}
+            />
+          </span>
         );
       },
     },
@@ -119,35 +121,37 @@ export default function AssociationsListPage() {
         const a = row.original;
         const status = a.account?.status ?? "ACTIVE";
         return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {status === "ACTIVE" ? (
-                <>
-                  <DropdownMenuItem onClick={() => setModerating({ assoc: a, action: "SUSPENDED" })}>
-                    <Ban className="mr-2 h-4 w-4" />Suspend
-                  </DropdownMenuItem>
-                  <DropdownMenuItem className="text-destructive" onClick={() => setModerating({ assoc: a, action: "BLACKLISTED" })}>
-                    <ShieldAlert className="mr-2 h-4 w-4" />Blacklist
-                  </DropdownMenuItem>
-                </>
-              ) : (
-                <>
-                  <DropdownMenuItem onClick={() => setReactivating(a)}>
-                    <RotateCcw className="mr-2 h-4 w-4" />Reactivate
-                  </DropdownMenuItem>
-                  {status === "SUSPENDED" && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem className="text-destructive" onClick={() => setModerating({ assoc: a, action: "BLACKLISTED" })}>
-                        <ShieldAlert className="mr-2 h-4 w-4" />Blacklist
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <span onClick={(e) => e.stopPropagation()}>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {status === "ACTIVE" ? (
+                  <>
+                    <DropdownMenuItem onClick={() => setModerating({ assoc: a, action: "SUSPENDED" })}>
+                      <Ban className="mr-2 h-4 w-4" />Suspend
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="text-destructive" onClick={() => setModerating({ assoc: a, action: "BLACKLISTED" })}>
+                      <ShieldAlert className="mr-2 h-4 w-4" />Blacklist
+                    </DropdownMenuItem>
+                  </>
+                ) : (
+                  <>
+                    <DropdownMenuItem onClick={() => setReactivating(a)}>
+                      <RotateCcw className="mr-2 h-4 w-4" />Reactivate
+                    </DropdownMenuItem>
+                    {status === "SUSPENDED" && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem className="text-destructive" onClick={() => setModerating({ assoc: a, action: "BLACKLISTED" })}>
+                          <ShieldAlert className="mr-2 h-4 w-4" />Blacklist
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </span>
         );
       },
     },

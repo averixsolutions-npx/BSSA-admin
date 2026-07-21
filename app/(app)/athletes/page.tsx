@@ -90,10 +90,12 @@ export default function AthletesListPage() {
       cell: ({ row }) => {
         const athlete = row.original;
         return (
-          <Switch
-            checked={athlete.isPublished}
-            onCheckedChange={(checked) => { publishMutation.mutate({ id: athlete.id, isPublished: checked }); }}
-          />
+          <span onClick={(e) => e.stopPropagation()}>
+            <Switch
+              checked={athlete.isPublished}
+              onCheckedChange={(checked) => { publishMutation.mutate({ id: athlete.id, isPublished: checked }); }}
+            />
+          </span>
         );
       },
     },
@@ -104,40 +106,42 @@ export default function AthletesListPage() {
         const a = row.original;
         const status = a.account?.status ?? "ACTIVE";
         return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => router.push(`/athletes/${a.id}`)}>
-                <FileText className="mr-2 h-4 w-4" />
-                View documents
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              {status === "ACTIVE" ? (
-                <>
-                  <DropdownMenuItem onClick={() => setModerating({ athlete: a, action: "SUSPENDED" })}>
-                    <Ban className="mr-2 h-4 w-4" />Suspend
-                  </DropdownMenuItem>
-                  <DropdownMenuItem className="text-destructive" onClick={() => setModerating({ athlete: a, action: "BLACKLISTED" })}>
-                    <ShieldAlert className="mr-2 h-4 w-4" />Blacklist
-                  </DropdownMenuItem>
-                </>
-              ) : (
-                <>
-                  <DropdownMenuItem onClick={() => setReactivating(a)}>
-                    <RotateCcw className="mr-2 h-4 w-4" />Reactivate
-                  </DropdownMenuItem>
-                  {status === "SUSPENDED" && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem className="text-destructive" onClick={() => setModerating({ athlete: a, action: "BLACKLISTED" })}>
-                        <ShieldAlert className="mr-2 h-4 w-4" />Blacklist
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <span onClick={(e) => e.stopPropagation()}>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => router.push(`/athletes/${a.id}`)}>
+                  <FileText className="mr-2 h-4 w-4" />
+                  View details
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {status === "ACTIVE" ? (
+                  <>
+                    <DropdownMenuItem onClick={() => setModerating({ athlete: a, action: "SUSPENDED" })}>
+                      <Ban className="mr-2 h-4 w-4" />Suspend
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="text-destructive" onClick={() => setModerating({ athlete: a, action: "BLACKLISTED" })}>
+                      <ShieldAlert className="mr-2 h-4 w-4" />Blacklist
+                    </DropdownMenuItem>
+                  </>
+                ) : (
+                  <>
+                    <DropdownMenuItem onClick={() => setReactivating(a)}>
+                      <RotateCcw className="mr-2 h-4 w-4" />Reactivate
+                    </DropdownMenuItem>
+                    {status === "SUSPENDED" && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem className="text-destructive" onClick={() => setModerating({ athlete: a, action: "BLACKLISTED" })}>
+                          <ShieldAlert className="mr-2 h-4 w-4" />Blacklist
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </span>
         );
       },
     },
@@ -152,6 +156,7 @@ export default function AthletesListPage() {
         isLoading={isLoading}
         isError={isError}
         emptyMessage="No athlete registrations yet."
+        onRowClick={(a) => router.push(`/athletes/${a.id}`)}
         search={{
           value: search,
           onChange: (v) => { setSearch(v); setDebounced(v); setPage(1); },

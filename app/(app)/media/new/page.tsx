@@ -2,10 +2,12 @@
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { ArrowLeft } from "lucide-react";
 
 import { mediaService } from "@/lib/services/media";
 import { ApiCallError } from "@/lib/api-client";
 import { PageHeader } from "@/components/page-header";
+import { Button } from "@/components/ui/button";
 import { MediaForm, type MediaFormValues } from "../media-form";
 
 export default function NewMediaPage() {
@@ -33,6 +35,9 @@ export default function NewMediaPage() {
 
   return (
     <div className="space-y-6">
+      <Button variant="ghost" size="sm" onClick={() => router.back()} className="-ml-2 mb-1">
+        <ArrowLeft className="h-4 w-4" /> Back
+      </Button>
       <PageHeader title="New media" description="Paste a public video URL. Publish when ready." />
       <MediaForm
         onSubmit={async (v) => { await createM.mutateAsync(v); }}

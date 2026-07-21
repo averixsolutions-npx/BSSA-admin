@@ -2,7 +2,7 @@
 import { useRouter, useParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Loader2, Eye, EyeOff, Trash2 } from "lucide-react";
+import { Loader2, Eye, EyeOff, Trash2, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 
 import { programsService } from "@/lib/services/programs";
@@ -51,6 +51,9 @@ export default function EditProgramPage() {
 
   return (
     <div className="space-y-6">
+      <Button variant="ghost" size="sm" onClick={() => router.back()} className="-ml-2 mb-1">
+        <ArrowLeft className="h-4 w-4" /> Back
+      </Button>
       <PageHeader
         title={item.name}
         description={<span className="flex items-center gap-2"><StatusBadge status={item.status} /><span className="text-muted-foreground">/{item.slug}</span></span>}

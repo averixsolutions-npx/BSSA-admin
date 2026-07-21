@@ -37,6 +37,9 @@ interface DataTableProps<TData> {
   };
   /** Toolbar rendered to the right of the search input (e.g. filter selects). */
   toolbar?: React.ReactNode;
+  /** When set, clicking a row calls this. Cells that shouldn't navigate
+   *  (e.g. action menus, switches) must call e.stopPropagation(). */
+  onRowClick?: (row: TData) => void;
 }
 
 export function DataTable<TData>({
@@ -48,6 +51,7 @@ export function DataTable<TData>({
   pagination,
   search,
   toolbar,
+  onRowClick,
 }: DataTableProps<TData>) {
   const table = useReactTable({
     data,
@@ -112,7 +116,11 @@ export function DataTable<TData>({
               </TableRow>
             ) : (
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
+                <TableRow
+                  key={row.id}
+                  onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                  className={onRowClick ? "cursor-pointer transition-colors hover:bg-muted/50" : undefined}
+                >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}

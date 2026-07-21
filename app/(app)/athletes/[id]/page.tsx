@@ -2,8 +2,7 @@
 import { useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, ExternalLink, ArrowLeft } from "lucide-react";
-import { format } from "date-fns";
+import { Loader2, ArrowLeft, CheckCircle2, XCircle, AlertCircle, FileX, Copy } from "lucide-react";
 import { toast } from "sonner";
 
 import { athletesAdminService } from "@/lib/services/athletes-admin";
@@ -22,6 +21,7 @@ import { PageHeader } from "@/components/page-header";
 import { AccountStatusBadge } from "@/components/account-status-badge";
 import { DocumentStatusBadge } from "@/components/document-status-badge";
 import { DocumentReviewDialog } from "@/components/document-review-dialog";
+import { ImageLightbox, type LightboxImage } from "@/components/image-lightbox";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
@@ -35,6 +35,7 @@ export default function AthleteDetailPage() {
     | { kind: "achievement"; item: AthleteAchievement; label: string }
     | null
   >(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const { data: profile, isLoading: profileLoading } = useQuery({
     queryKey: ["athletes", "detail", id],
@@ -68,6 +69,11 @@ export default function AthleteDetailPage() {
     onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
   });
 
+  const copy = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success(`${label} copied`);
+  };
+
   if (profileLoading) {
     return <div className="flex h-64 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
   }
@@ -84,6 +90,22 @@ export default function AthleteDetailPage() {
     documents.some((d) => d.type === t && d.status === "APPROVED")
   ).length;
   const readyToPublish = approvedMandatoryCount === MANDATORY_DOCUMENT_TYPES.length;
+
+  // Uploaded docs, in display order — the lightbox navigates across these.
+  const uploadedDocs = ALL_DOCUMENT_TYPES
+    .map((type) => documents.find((d) => d.type === type))
+    .filter((d): d is AthleteDocument => !!d);
+
+  const lightboxImages: LightboxImage[] = uploadedDocs.map((d) => ({
+    url: d.viewUrl,
+    label: DOCUMENT_TYPE_LABELS[d.type],
+  }));
+
+  const achievementImages: LightboxImage[] = achievements.map((a) => ({
+    url: a.viewUrl,
+    label: `${a.title} — proof`,
+  }));
+  const allImages: LightboxImage[] = [...lightboxImages, ...achievementImages];
 
   return (
     <div className="space-y-8">
@@ -104,10 +126,25 @@ export default function AthleteDetailPage() {
           title={profile.fullName}
           description={
             <div className="flex flex-wrap items-center gap-2 mt-1">
-              {profile.bssaId && <span className="font-mono text-xs px-2 py-0.5 rounded bg-muted">{profile.bssaId}</span>}
+              {profile.bssaId && (
+                <button
+                  onClick={() => copy(profile.bssaId!, "BSSA ID")}
+                  className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 font-mono text-xs hover:bg-muted/70"
+                >
+                  {profile.bssaId} <Copy className="h-3 w-3 opacity-60" />
+                </button>
+              )}
               <AccountStatusBadge status={profile.account?.status} />
               <Badge variant={profile.isPublished ? "success" : "secondary"}>{profile.isPublished ? "Published" : "Not published"}</Badge>
               <span className="text-sm text-muted-foreground">{profile.discipline} · {profile.state}</span>
+              {profile.account?.mobile && (
+                <button
+                  onClick={() => copy(profile.account!.mobile!, "Mobile number")}
+                  className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 font-mono text-xs hover:bg-muted/70"
+                >
+                  {profile.account.mobile} <Copy className="h-3 w-3 opacity-60" />
+                </button>
+              )}
             </div>
           }
         />
@@ -124,48 +161,109 @@ export default function AthleteDetailPage() {
 
       {/* Documents */}
       <section className="space-y-3">
-        <h2 className="font-semibold text-lg">Identity documents</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Identity documents</h2>
+          <span className="text-sm text-muted-foreground">
+            {approvedMandatoryCount}/{MANDATORY_DOCUMENT_TYPES.length} mandatory approved
+          </span>
+        </div>
+
         {docsLoading ? (
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="aspect-[4/3] animate-pulse rounded-xl border bg-muted/40" />
+            ))}
+          </div>
         ) : (
-          <div className="divide-y rounded-lg border">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
             {ALL_DOCUMENT_TYPES.map((type) => {
               const doc = documents.find((d) => d.type === type);
               const mandatory = MANDATORY_DOCUMENT_TYPES.includes(type);
-              return (
-                <div key={type} className="flex items-center justify-between gap-4 p-4">
-                  <div>
-                    <p className="font-medium text-sm">
-                      {DOCUMENT_TYPE_LABELS[type]}
-                      {mandatory && <span className="ml-2 text-xs text-muted-foreground">(mandatory)</span>}
-                    </p>
-                    {doc ? (
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Uploaded {format(new Date(doc.uploadedAt), "d MMM yyyy")}
-                        {doc.reviewNote && ` · Note: ${doc.reviewNote}`}
+              const label = DOCUMENT_TYPE_LABELS[type];
+
+              if (!doc) {
+                return (
+                  <div key={type}
+                    className="flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed bg-muted/30 p-3 text-center">
+                    <FileX className="h-5 w-5 text-muted-foreground" />
+                    <div>
+                      <p className="text-xs font-medium">{label}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {mandatory ? "Mandatory · not uploaded" : "Not uploaded"}
                       </p>
-                    ) : (
-                      <p className="text-xs text-muted-foreground mt-0.5">Not uploaded yet</p>
+                    </div>
+                  </div>
+                );
+              }
+
+              const idx = uploadedDocs.findIndex((d) => d.id === doc.id);
+              const border =
+                doc.status === "APPROVED" ? "border-emerald-500/50"
+                : doc.status === "REJECTED" ? "border-red-500/50"
+                : "border-border";
+
+              return (
+                <div key={type} className={`overflow-hidden rounded-xl border-2 ${border} bg-card`}>
+                  <button
+                    type="button"
+                    onClick={() => setLightboxIndex(idx)}
+                    className="group relative block aspect-[4/3] w-full overflow-hidden bg-muted"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={doc.viewUrl}
+                      alt={label}
+                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    />
+                    <span className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/20" />
+                  </button>
+
+                  <div className="border-t px-3 py-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="truncate text-xs font-medium">{label}</p>
+                      {doc.status === "APPROVED" && (
+                        <span className="flex shrink-0 items-center gap-1 text-[10px] font-bold text-emerald-600">
+                          <CheckCircle2 size={11} /> APPROVED
+                        </span>
+                      )}
+                      {doc.status === "REJECTED" && (
+                        <span className="flex shrink-0 items-center gap-1 text-[10px] font-bold text-red-600">
+                          <XCircle size={11} /> REJECTED
+                        </span>
+                      )}
+                      {doc.status === "PENDING" && (
+                        <span className="flex shrink-0 items-center gap-1 text-[10px] font-bold text-amber-600">
+                          <AlertCircle size={11} /> PENDING
+                        </span>
+                      )}
+                    </div>
+                    {mandatory && <p className="mt-0.5 text-[10px] text-muted-foreground">Mandatory</p>}
+                    {doc.reviewNote && doc.status === "REJECTED" && (
+                      <p className="mt-1 text-[11px] leading-snug text-red-600">Reason: {doc.reviewNote}</p>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {doc ? (
-                      <>
-                        <DocumentStatusBadge status={doc.status} />
-                        <Button variant="outline" size="sm" asChild>
-                          <a href={doc.viewUrl} target="_blank" rel="noreferrer"><ExternalLink className="h-3.5 w-3.5" />View</a>
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => setReviewing({ kind: "document", item: doc, label: DOCUMENT_TYPE_LABELS[type] })}
-                        >
-                          Review
-                        </Button>
-                      </>
-                    ) : (
-                      <Badge variant="secondary">Pending upload</Badge>
-                    )}
-                  </div>
+
+                  {doc.status !== "APPROVED" && (
+                    <div className="flex gap-2 px-3 pb-3">
+                      <Button
+                        size="sm"
+                        className="h-7 flex-1 text-[11px]"
+                        disabled={verifyDocMutation.isPending}
+                        onClick={() => verifyDocMutation.mutate({ docId: doc.id, status: "APPROVED" })}
+                      >
+                        Approve
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 flex-1 text-[11px]"
+                        disabled={verifyDocMutation.isPending}
+                        onClick={() => setReviewing({ kind: "document", item: doc, label })}
+                      >
+                        Reject
+                      </Button>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -175,31 +273,56 @@ export default function AthleteDetailPage() {
 
       {/* Achievements */}
       <section className="space-y-3">
-        <h2 className="font-semibold text-lg">Achievements</h2>
+        <h2 className="text-lg font-semibold">Achievements</h2>
         {achLoading ? (
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         ) : achievements.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-6 text-center border rounded-lg">No achievements submitted yet.</p>
+          <div className="flex flex-col items-center gap-2 rounded-lg border py-10 text-center">
+            <FileX className="h-6 w-6 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">No achievements submitted yet.</p>
+          </div>
         ) : (
-          <div className="divide-y rounded-lg border">
-            {achievements.map((a) => (
-              <div key={a.id} className="flex items-center justify-between gap-4 p-4">
-                <div>
-                  <p className="font-medium text-sm">{a.title} <span className="text-muted-foreground font-normal">— {a.year}</span></p>
-                  {a.description && <p className="text-xs text-muted-foreground mt-0.5">{a.description}</p>}
-                  {a.reviewNote && <p className="text-xs text-muted-foreground mt-0.5">Note: {a.reviewNote}</p>}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {achievements.map((a, achIndex) => {
+              const border =
+                a.status === "APPROVED" ? "border-emerald-500/50"
+                : a.status === "REJECTED" ? "border-red-500/50"
+                : "border-border";
+              return (
+                <div key={a.id} className={`overflow-hidden rounded-xl border-2 ${border} bg-card`}>
+                  <button
+                    type="button"
+                    onClick={() => setLightboxIndex(lightboxImages.length + achIndex)}
+                    className="group relative block aspect-[4/3] w-full overflow-hidden bg-muted"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={a.viewUrl} alt={a.title}
+                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                    <span className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/20" />
+                  </button>
+                  <div className="border-t px-3 py-2">
+                    <p className="text-sm font-medium">{a.title} <span className="font-normal text-muted-foreground">— {a.year}</span></p>
+                    {a.description && <p className="mt-0.5 text-xs text-muted-foreground">{a.description}</p>}
+                    <div className="mt-1"><DocumentStatusBadge status={a.status} /></div>
+                    {a.reviewNote && a.status === "REJECTED" && (
+                      <p className="mt-1 text-[11px] text-red-600">Reason: {a.reviewNote}</p>
+                    )}
+                  </div>
+                  {a.status !== "APPROVED" && (
+                    <div className="flex gap-2 px-3 pb-3">
+                      <Button size="sm" className="h-7 flex-1 text-[11px]" disabled={verifyAchMutation.isPending}
+                        onClick={() => verifyAchMutation.mutate({ achId: a.id, status: "APPROVED" })}>
+                        Approve
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-7 flex-1 text-[11px]" disabled={verifyAchMutation.isPending}
+                        onClick={() => setReviewing({ kind: "achievement", item: a, label: a.title })}>
+                        Reject
+                      </Button>
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <DocumentStatusBadge status={a.status} />
-                  <Button variant="outline" size="sm" asChild>
-                    <a href={a.viewUrl} target="_blank" rel="noreferrer"><ExternalLink className="h-3.5 w-3.5" />View proof</a>
-                  </Button>
-                  <Button size="sm" onClick={() => setReviewing({ kind: "achievement", item: a, label: a.title })}>
-                    Review
-                  </Button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>
@@ -216,6 +339,13 @@ export default function AthleteDetailPage() {
             await verifyAchMutation.mutateAsync({ achId: reviewing.item.id, status, reviewNote });
           }
         }}
+      />
+
+      <ImageLightbox
+        images={allImages}
+        index={lightboxIndex}
+        onClose={() => setLightboxIndex(null)}
+        onIndexChange={setLightboxIndex}
       />
     </div>
   );

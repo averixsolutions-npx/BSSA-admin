@@ -2,10 +2,12 @@
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { ArrowLeft } from "lucide-react";
 
 import { announcementsService } from "@/lib/services/announcements";
 import { ApiCallError } from "@/lib/api-client";
 import { PageHeader } from "@/components/page-header";
+import { Button } from "@/components/ui/button";
 import { AnnouncementForm, type AnnouncementFormValues } from "../announcement-form";
 
 export default function NewAnnouncementPage() {
@@ -25,6 +27,9 @@ export default function NewAnnouncementPage() {
 
   return (
     <div className="space-y-6">
+      <Button variant="ghost" size="sm" onClick={() => router.back()} className="-ml-2 mb-1">
+        <ArrowLeft className="h-4 w-4" /> Back
+      </Button>
       <PageHeader title="New announcement" description="Add a line to the public ticker." />
       <AnnouncementForm
         onSubmit={async (v) => { await createM.mutateAsync(v); }}
