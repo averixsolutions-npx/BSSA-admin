@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
@@ -19,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 
 export default function AssociationsListPage() {
+  const router = useRouter();
   const qc = useQueryClient();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
@@ -166,6 +168,7 @@ export default function AssociationsListPage() {
         isLoading={isLoading}
         isError={isError}
         emptyMessage="No association registrations yet."
+        onRowClick={(a) => router.push(`/associations/${a.id}`)}
         search={{
           value: search,
           onChange: (v) => { setSearch(v); setPage(1); },

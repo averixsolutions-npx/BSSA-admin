@@ -10,6 +10,7 @@ export const associationsAdminService = {
       state: params.state || undefined,
       isPublished: params.isPublished,
     }),
+  getById: (id: string) => api.get<AssociationProfile>(`/admin/associations/${id}`),
   setPublished: (id: string, isPublished: boolean) =>
     api.patch<AssociationProfile>(`/admin/associations/${id}/publish`, { isPublished }),
   setStatus: (id: string, status: "ACTIVE" | "SUSPENDED" | "BLACKLISTED", reason?: string) =>
