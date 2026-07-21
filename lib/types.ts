@@ -30,6 +30,7 @@ export type ContentStatus = "DRAFT" | "PUBLISHED";
 export type MediaPlatform = "YOUTUBE" | "INSTAGRAM" | "TWITTER" | "FACEBOOK" | "VIMEO";
 export type AccountRole = "ATHLETE" | "ASSOCIATION" | "ADMIN";
 export type AccountStatus = "ACTIVE" | "SUSPENDED" | "BLACKLISTED";
+export type SubmissionStatus = "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED" | "RESUBMITTED";
 
 export interface AdminAccount {
   id: string;
@@ -173,10 +174,7 @@ export interface AboutContent {
   updatedAt: string;
 }
 
-export interface AthleteProfile {
-  id: string;
-  accountId: string;
-  bssaId: string | null;
+export interface AthleteSnapshot {
   fullName: string;
   dob: string;
   gender: string;
@@ -185,7 +183,28 @@ export interface AthleteProfile {
   address: string | null;
   photoUrl: string | null;
   coverUrl: string | null;
+  snapshotAt: string;
+}
+
+export interface AthleteProfile {
+  id: string;
+  accountId: string;
+  bssaId: string | null;
+  fullName: string | null;
+  dob: string | null;
+  gender: string | null;
+  discipline: string | null;
+  state: string | null;
+  address: string | null;
+  photoUrl: string | null;
+  coverUrl: string | null;
   isPublished: boolean;
+  submissionStatus: SubmissionStatus;
+  submittedAt: string | null;
+  reviewNote: string | null;
+  reviewedAt: string | null;
+  reviewedByAdminId: string | null;
+  approvedSnapshot: AthleteSnapshot | null;
   createdAt: string;
   updatedAt: string;
   account?: {
@@ -197,15 +216,24 @@ export interface AthleteProfile {
   };
 }
 
+export interface AssociationSnapshot {
+  name: string;
+  state: string;
+  incorporationNumber: string | null;
+  president: string | null;
+  treasurer: string | null;
+  snapshotAt: string;
+}
+
 export interface AssociationProfile {
   id: string;
   accountId: string;
   bssaId: string | null;
-  name: string;
-  state: string;
+  name: string | null;
+  state: string | null;
   incorporationNumber: string | null;
-  contactPerson: string;
-  contactMobile: string;
+  contactPerson: string | null;
+  contactMobile: string | null;
   president: string | null;
   treasurer: string | null;
   email: string | null;
@@ -213,6 +241,12 @@ export interface AssociationProfile {
   logoUrl: string | null;
   coverUrl: string | null;
   isPublished: boolean;
+  submissionStatus: SubmissionStatus;
+  submittedAt: string | null;
+  reviewNote: string | null;
+  reviewedAt: string | null;
+  reviewedByAdminId: string | null;
+  approvedSnapshot: AssociationSnapshot | null;
   createdAt: string;
   updatedAt: string;
   account?: {
@@ -281,6 +315,54 @@ export interface AthleteAchievement {
   reviewedAt: string | null;
   reviewedByAdminId: string | null;
   createdAt: string;
+  updatedAt: string;
+  viewUrl: string;
+}
+
+// ─── Association documents ────────────────────────────
+
+export type AssociationDocumentType =
+  | "REGISTRATION_CERTIFICATE"
+  | "PAN_CARD"
+  | "BANK_PROOF"
+  | "PRESIDENT_ID"
+  | "TREASURER_ID"
+  | "GST_CERTIFICATE"
+  | "BYELAWS";
+
+export const ALL_ASSOCIATION_DOCUMENT_TYPES: AssociationDocumentType[] = [
+  "REGISTRATION_CERTIFICATE",
+  "PAN_CARD",
+  "BANK_PROOF",
+  "PRESIDENT_ID",
+  "TREASURER_ID",
+  "GST_CERTIFICATE",
+  "BYELAWS",
+];
+
+// Deliberately empty — all types are optional per backend spec.
+export const MANDATORY_ASSOCIATION_DOCUMENT_TYPES: AssociationDocumentType[] = [];
+
+export const ASSOCIATION_DOCUMENT_TYPE_LABELS: Record<AssociationDocumentType, string> = {
+  REGISTRATION_CERTIFICATE: "Registration Certificate",
+  PAN_CARD: "PAN Card",
+  BANK_PROOF: "Bank Proof",
+  PRESIDENT_ID: "President ID",
+  TREASURER_ID: "Treasurer ID",
+  GST_CERTIFICATE: "GST Certificate",
+  BYELAWS: "Bye-laws",
+};
+
+export interface AssociationDocument {
+  id: string;
+  associationProfileId: string;
+  type: AssociationDocumentType;
+  fileKey: string;
+  status: VerificationStatus;
+  reviewNote: string | null;
+  reviewedAt: string | null;
+  reviewedByAdminId: string | null;
+  uploadedAt: string;
   updatedAt: string;
   viewUrl: string;
 }

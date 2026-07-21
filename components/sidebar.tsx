@@ -4,6 +4,25 @@ import { usePathname } from "next/navigation";
 import { NAV_GROUPS } from "./nav-config";
 import { ScrollArea } from "./ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { useQueueCounts } from "./hooks/use-queue-counts";
+
+// Nav hrefs that show a pending-review count pill.
+const QUEUE_HREFS: Record<string, "athletes" | "associations"> = {
+  "/athletes": "athletes",
+  "/associations": "associations",
+};
+
+function NavPendingPill({ href }: { href: string }) {
+  const role = QUEUE_HREFS[href];
+  const { data } = useQueueCounts(role!);
+  const count = data?.PENDING ?? 0;
+  if (!count) return null;
+  return (
+    <span className="ml-auto rounded-full bg-destructive px-1.5 py-0.5 text-[10px] font-bold leading-none text-destructive-foreground">
+      {count}
+    </span>
+  );
+}
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -42,6 +61,7 @@ export function Sidebar() {
                     >
                       <item.icon className="h-4 w-4" />
                       {item.label}
+                      {QUEUE_HREFS[item.href] && <NavPendingPill href={item.href} />}
                     </Link>
                   );
                 })}

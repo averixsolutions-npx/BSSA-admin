@@ -7,9 +7,15 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 
 import { associationsAdminService } from "@/lib/services/associations-admin";
+import { associationDocumentsService } from "@/lib/services/association-documents";
 import { ApiCallError } from "@/lib/api-client";
 import { PageHeader } from "@/components/page-header";
 import { AccountStatusBadge } from "@/components/account-status-badge";
+import { SubmissionStatusBadge } from "@/components/submission-status-badge";
+import { ApproveRejectBar } from "@/components/approve-reject-bar";
+import { PendingChangesBanner } from "@/components/pending-changes-banner";
+import { RejectionReasonBanner } from "@/components/rejection-reason-banner";
+import { AssociationDocumentsGrid } from "@/components/association-documents-grid";
 import { ModerationDialog } from "@/components/moderation-dialog";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ImageLightbox, type LightboxImage } from "@/components/image-lightbox";
@@ -31,6 +37,12 @@ export default function AssociationDetailPage() {
     enabled: !!id,
   });
 
+  const { data: docs = [] } = useQuery({
+    queryKey: ["association-documents", id],
+    queryFn: () => associationDocumentsService.list(id),
+    enabled: !!id,
+  });
+
   const publishMutation = useMutation({
     mutationFn: (isPublished: boolean) => associationsAdminService.setPublished(id, isPublished),
     onSuccess: (_, isPublished) => {
@@ -46,6 +58,28 @@ export default function AssociationDetailPage() {
     onSuccess: (_, v) => {
       qc.invalidateQueries({ queryKey: ["associations"] });
       toast.success(v.status === "ACTIVE" ? "Reactivated" : v.status === "SUSPENDED" ? "Suspended" : "Blacklisted");
+    },
+    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+  });
+
+  const approveProfileMutation = useMutation({
+    mutationFn: () => associationsAdminService.approve(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["associations", "detail", id] });
+      qc.invalidateQueries({ queryKey: ["associations", "list"] });
+      qc.invalidateQueries({ queryKey: ["queue-counts", "associations"] });
+      toast.success("Association approved");
+    },
+    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+  });
+
+  const rejectProfileMutation = useMutation({
+    mutationFn: (reviewNote: string) => associationsAdminService.reject(id, reviewNote),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["associations", "detail", id] });
+      qc.invalidateQueries({ queryKey: ["associations", "list"] });
+      qc.invalidateQueries({ queryKey: ["queue-counts", "associations"] });
+      toast.success("Association rejected — user has been notified");
     },
     onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
   });
@@ -69,10 +103,29 @@ export default function AssociationDetailPage() {
 
   const status = assoc.account?.status ?? "ACTIVE";
 
+  // No hard gate for associations — all document types are optional.
+  const canApprove = true;
+  const blockedReason: string | undefined = undefined;
+  const softWarn =
+    (assoc.submissionStatus === "SUBMITTED" || assoc.submissionStatus === "RESUBMITTED") && docs.length === 0
+      ? "No documents uploaded yet. Approve anyway if you're confident in the association's details."
+      : undefined;
+
+  const diffRows =
+    assoc.submissionStatus === "RESUBMITTED" && assoc.approvedSnapshot
+      ? [
+          { label: "Name", before: assoc.approvedSnapshot.name, after: assoc.name },
+          { label: "State", before: assoc.approvedSnapshot.state, after: assoc.state },
+          { label: "Incorporation number", before: assoc.approvedSnapshot.incorporationNumber, after: assoc.incorporationNumber },
+          { label: "President", before: assoc.approvedSnapshot.president, after: assoc.president },
+          { label: "Treasurer", before: assoc.approvedSnapshot.treasurer, after: assoc.treasurer },
+        ]
+      : [];
+
   // Photos → lightbox (only those that exist)
   const images: LightboxImage[] = [
-    ...(assoc.coverUrl ? [{ url: assoc.coverUrl, label: `${assoc.name} — cover` }] : []),
-    ...(assoc.logoUrl ? [{ url: assoc.logoUrl, label: `${assoc.name} — logo` }] : []),
+    ...(assoc.coverUrl ? [{ url: assoc.coverUrl, label: `${assoc.name ?? "Association"} — cover` }] : []),
+    ...(assoc.logoUrl ? [{ url: assoc.logoUrl, label: `${assoc.name ?? "Association"} — logo` }] : []),
   ];
 
   const details: { label: string; value: string | null }[] = [
@@ -119,7 +172,7 @@ export default function AssociationDetailPage() {
       )}
 
       <PageHeader
-        title={assoc.name}
+        title={assoc.name ?? "Unnamed draft"}
         description={
           <div className="mt-1 flex flex-wrap items-center gap-2">
             {assoc.bssaId && (
@@ -129,10 +182,11 @@ export default function AssociationDetailPage() {
               </button>
             )}
             <AccountStatusBadge status={assoc.account?.status} />
+            <SubmissionStatusBadge status={assoc.submissionStatus} />
             <Badge variant={assoc.isPublished ? "success" : "secondary"}>
               {assoc.isPublished ? "Published" : "Not published"}
             </Badge>
-            <span className="text-sm text-muted-foreground">{assoc.state}</span>
+            <span className="text-sm text-muted-foreground">{assoc.state ?? "—"}</span>
           </div>
         }
       />
@@ -145,6 +199,26 @@ export default function AssociationDetailPage() {
           </span>{" "}
           {assoc.account.statusReason}
         </div>
+      )}
+
+      <ApproveRejectBar
+        status={assoc.submissionStatus}
+        canApprove={canApprove}
+        blockedReason={blockedReason}
+        subjectLabel={assoc.name ?? "this association"}
+        onApprove={() => approveProfileMutation.mutateAsync()}
+        onReject={(note) => rejectProfileMutation.mutateAsync(note)}
+        isPending={approveProfileMutation.isPending || rejectProfileMutation.isPending}
+      />
+
+      {softWarn && <p className="text-xs text-amber-700 dark:text-amber-400">{softWarn}</p>}
+
+      {assoc.submissionStatus === "RESUBMITTED" && (
+        <PendingChangesBanner rows={diffRows} snapshotAt={assoc.approvedSnapshot?.snapshotAt ?? null} />
+      )}
+
+      {assoc.submissionStatus === "REJECTED" && assoc.reviewNote && (
+        <RejectionReasonBanner reviewNote={assoc.reviewNote} reviewedAt={assoc.reviewedAt} />
       )}
 
       {/* Details card */}
@@ -160,6 +234,8 @@ export default function AssociationDetailPage() {
         </div>
       </section>
 
+      <AssociationDocumentsGrid associationId={id} />
+
       {/* Actions */}
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Actions</h2>
@@ -168,6 +244,7 @@ export default function AssociationDetailPage() {
             <p className="text-sm font-medium">Public visibility</p>
             <p className="text-xs text-muted-foreground">
               {assoc.isPublished ? "Visible in the public directory." : "Hidden from the public directory."}
+              {" "}Toggle to temporarily hide an approved profile. Doesn't change review status.
             </p>
           </div>
           <Button
@@ -212,7 +289,7 @@ export default function AssociationDetailPage() {
         open={!!moderating}
         onOpenChange={(o) => !o && setModerating(null)}
         action={moderating}
-        subjectName={assoc.name}
+        subjectName={assoc.name ?? "this association"}
         onConfirm={async (reason) => {
           if (moderating) await statusMutation.mutateAsync({ status: moderating, reason });
         }}
@@ -221,7 +298,7 @@ export default function AssociationDetailPage() {
         open={reactivating}
         onOpenChange={setReactivating}
         title="Reactivate association?"
-        description={`${assoc.name} will be able to log in again and reappear in the public directory.`}
+        description={`${assoc.name ?? "This association"} will be able to log in again and reappear in the public directory.`}
         confirmLabel="Reactivate"
         onConfirm={async () => { await statusMutation.mutateAsync({ status: "ACTIVE" }); }}
       />

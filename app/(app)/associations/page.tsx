@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -14,6 +14,9 @@ import { PageHeader } from "@/components/page-header";
 import { DataTable } from "@/components/data-table";
 import { Switch } from "@/components/ui/switch";
 import { AccountStatusBadge } from "@/components/account-status-badge";
+import { SubmissionStatusBadge } from "@/components/submission-status-badge";
+import { StatusFilterChips, QUEUE_BUCKETS, type QueueBucket } from "@/components/status-filter-chips";
+import { useQueueCounts } from "@/components/hooks/use-queue-counts";
 import { ModerationDialog } from "@/components/moderation-dialog";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
@@ -24,14 +27,30 @@ export default function AssociationsListPage() {
   const qc = useQueryClient();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
+  const [bucket, setBucket] = useState<QueueBucket>("PENDING");
 
   // Which association is being moderated, and to what target status.
   const [moderating, setModerating] = useState<{ assoc: AssociationProfile; action: "SUSPENDED" | "BLACKLISTED" } | null>(null);
   const [reactivating, setReactivating] = useState<AssociationProfile | null>(null);
 
+  const counts = useQueueCounts("associations");
+  const bucketConfig = QUEUE_BUCKETS.find((b) => b.key === bucket)!;
+  const listParams = {
+    page,
+    limit: 20,
+    search: search || undefined,
+    ...(bucketConfig.statuses && bucketConfig.statuses.length === 1
+      ? { submissionStatus: bucketConfig.statuses[0] }
+      : bucketConfig.statuses
+      ? { submissionStatusIn: bucketConfig.statuses }
+      : {}),
+  };
+
+  useEffect(() => setPage(1), [bucket]);
+
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["associations", "list", { page, search }],
-    queryFn: () => associationsAdminService.list({ page, limit: 20, search: search || undefined }),
+    queryKey: ["associations", "list", listParams],
+    queryFn: () => associationsAdminService.list(listParams),
   });
 
   const publishMutation = useMutation({
@@ -73,8 +92,16 @@ export default function AssociationsListPage() {
         );
       },
     },
-    { header: "Name", accessorKey: "name", cell: ({ row }) => <span className="font-medium">{row.original.name}</span> },
-    { header: "State", accessorKey: "state", cell: ({ row }) => <span className="text-muted-foreground">{row.original.state}</span> },
+    {
+      header: "Name",
+      accessorKey: "name",
+      cell: ({ row }) => (
+        <span className="font-medium">
+          {row.original.name ?? <span className="italic text-muted-foreground">Unnamed draft</span>}
+        </span>
+      ),
+    },
+    { header: "State", accessorKey: "state", cell: ({ row }) => <span className="text-muted-foreground">{row.original.state ?? "—"}</span> },
     {
       header: "Contact",
       id: "contact",
@@ -82,7 +109,7 @@ export default function AssociationsListPage() {
         const a = row.original;
         return (
           <div className="text-sm">
-            <div className="text-muted-foreground">{a.contactPerson}</div>
+            <div className="text-muted-foreground">{a.contactPerson ?? "—"}</div>
             {(a.president || a.treasurer) && (
               <div className="text-xs text-muted-foreground/80">
                 {a.president && <>Pres: {a.president}</>}
@@ -99,17 +126,31 @@ export default function AssociationsListPage() {
       id: "status",
       cell: ({ row }) => <AccountStatusBadge status={row.original.account?.status} />,
     },
-    { header: "Mobile", cell: ({ row }) => <span className="text-muted-foreground">{row.original.contactMobile}</span> },
-    { header: "Registered", cell: ({ row }) => <span className="text-sm">{format(new Date(row.original.createdAt), "d MMM yyyy")}</span> },
+    {
+      header: "Review",
+      id: "submissionStatus",
+      cell: ({ row }) => <SubmissionStatusBadge status={row.original.submissionStatus} />,
+    },
+    {
+      header: "Submitted",
+      id: "submittedAt",
+      cell: ({ row }) => {
+        const t = row.original.submittedAt;
+        return <span className="text-sm text-muted-foreground">{t ? format(new Date(t), "d MMM yyyy") : "—"}</span>;
+      },
+    },
+    { header: "Mobile", cell: ({ row }) => <span className="text-muted-foreground">{row.original.contactMobile ?? "—"}</span> },
     {
       header: "Visible",
       id: "visible",
       cell: ({ row }) => {
         const assoc = row.original;
+        const canToggle = assoc.submissionStatus === "APPROVED" || assoc.submissionStatus === "RESUBMITTED";
         return (
           <span onClick={(e) => e.stopPropagation()}>
             <Switch
               checked={assoc.isPublished}
+              disabled={!canToggle}
               onCheckedChange={(checked) => { publishMutation.mutate({ id: assoc.id, isPublished: checked }); }}
             />
           </span>
@@ -161,13 +202,14 @@ export default function AssociationsListPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Associations" description="Registered associations. Toggle visibility to control who appears in the public directory." />
+      <PageHeader title="Associations" description="Registered associations. Review submissions and manage visibility." />
+      <StatusFilterChips value={bucket} onChange={setBucket} counts={counts.data} />
       <DataTable
         columns={columns}
         data={data?.items ?? []}
         isLoading={isLoading}
         isError={isError}
-        emptyMessage="No association registrations yet."
+        emptyMessage={bucket === "PENDING" ? "Nothing to review. New submissions will appear here." : "No associations in this bucket."}
         onRowClick={(a) => router.push(`/associations/${a.id}`)}
         search={{
           value: search,
@@ -181,7 +223,7 @@ export default function AssociationsListPage() {
         open={!!moderating}
         onOpenChange={(o) => !o && setModerating(null)}
         action={moderating?.action ?? null}
-        subjectName={moderating?.assoc.name ?? ""}
+        subjectName={moderating?.assoc.name ?? "this association"}
         onConfirm={async (reason) => {
           if (moderating) await statusMutation.mutateAsync({ id: moderating.assoc.id, status: moderating.action, reason });
         }}
@@ -190,7 +232,7 @@ export default function AssociationsListPage() {
         open={!!reactivating}
         onOpenChange={(o) => !o && setReactivating(null)}
         title="Reactivate association?"
-        description={reactivating ? `${reactivating.name} will be able to log in again and reappear in the public directory.` : ""}
+        description={reactivating ? `${reactivating.name ?? "This association"} will be able to log in again and reappear in the public directory.` : ""}
         confirmLabel="Reactivate"
         onConfirm={async () => { if (reactivating) await statusMutation.mutateAsync({ id: reactivating.id, status: "ACTIVE" }); }}
       />

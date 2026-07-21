@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -14,6 +14,9 @@ import { PageHeader } from "@/components/page-header";
 import { DataTable } from "@/components/data-table";
 import { Switch } from "@/components/ui/switch";
 import { AccountStatusBadge } from "@/components/account-status-badge";
+import { SubmissionStatusBadge } from "@/components/submission-status-badge";
+import { StatusFilterChips, QUEUE_BUCKETS, type QueueBucket } from "@/components/status-filter-chips";
+import { useQueueCounts } from "@/components/hooks/use-queue-counts";
 import { ModerationDialog } from "@/components/moderation-dialog";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
@@ -25,14 +28,31 @@ export default function AthletesListPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
+  const [bucket, setBucket] = useState<QueueBucket>("PENDING");
 
   // Which athlete is being moderated, and to what target status.
   const [moderating, setModerating] = useState<{ athlete: AthleteProfile; action: "SUSPENDED" | "BLACKLISTED" } | null>(null);
   const [reactivating, setReactivating] = useState<AthleteProfile | null>(null);
 
+  const counts = useQueueCounts("athletes");
+  const bucketConfig = QUEUE_BUCKETS.find((b) => b.key === bucket)!;
+  const listParams = {
+    page,
+    limit: 20,
+    search: debounced || undefined,
+    ...(bucketConfig.statuses && bucketConfig.statuses.length === 1
+      ? { submissionStatus: bucketConfig.statuses[0] }
+      : bucketConfig.statuses
+      ? { submissionStatusIn: bucketConfig.statuses }
+      : {}),
+  };
+
+  // Reset page whenever the bucket changes.
+  useEffect(() => setPage(1), [bucket]);
+
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["athletes", "list", { page, search: debounced }],
-    queryFn: () => athletesAdminService.list({ page, limit: 20, search: debounced || undefined }),
+    queryKey: ["athletes", "list", listParams],
+    queryFn: () => athletesAdminService.list(listParams),
   });
 
   const publishMutation = useMutation({
@@ -74,25 +94,47 @@ export default function AthletesListPage() {
         );
       },
     },
-    { header: "Name", accessorKey: "fullName", cell: ({ row }) => <span className="font-medium">{row.original.fullName}</span> },
-    { header: "Discipline", accessorKey: "discipline", cell: ({ row }) => <span className="text-muted-foreground">{row.original.discipline}</span> },
-    { header: "State", accessorKey: "state", cell: ({ row }) => <span className="text-muted-foreground">{row.original.state}</span> },
+    {
+      header: "Name",
+      accessorKey: "fullName",
+      cell: ({ row }) => (
+        <span className="font-medium">
+          {row.original.fullName ?? <span className="italic text-muted-foreground">Unnamed draft</span>}
+        </span>
+      ),
+    },
+    { header: "Discipline", accessorKey: "discipline", cell: ({ row }) => <span className="text-muted-foreground">{row.original.discipline ?? "—"}</span> },
+    { header: "State", accessorKey: "state", cell: ({ row }) => <span className="text-muted-foreground">{row.original.state ?? "—"}</span> },
     {
       header: "Status",
       id: "status",
       cell: ({ row }) => <AccountStatusBadge status={row.original.account?.status} />,
     },
+    {
+      header: "Review",
+      id: "submissionStatus",
+      cell: ({ row }) => <SubmissionStatusBadge status={row.original.submissionStatus} />,
+    },
+    {
+      header: "Submitted",
+      id: "submittedAt",
+      cell: ({ row }) => {
+        const t = row.original.submittedAt;
+        return <span className="text-sm text-muted-foreground">{t ? format(new Date(t), "d MMM yyyy") : "—"}</span>;
+      },
+    },
     { header: "Mobile", cell: ({ row }) => <span className="text-muted-foreground">{row.original.account?.mobile ?? "—"}</span> },
-    { header: "Registered", cell: ({ row }) => <span className="text-sm">{format(new Date(row.original.createdAt), "d MMM yyyy")}</span> },
     {
       header: "Visible",
       id: "visible",
       cell: ({ row }) => {
         const athlete = row.original;
+        const canToggle = athlete.submissionStatus === "APPROVED" || athlete.submissionStatus === "RESUBMITTED";
         return (
           <span onClick={(e) => e.stopPropagation()}>
             <Switch
               checked={athlete.isPublished}
+              disabled={!canToggle}
               onCheckedChange={(checked) => { publishMutation.mutate({ id: athlete.id, isPublished: checked }); }}
             />
           </span>
@@ -149,13 +191,14 @@ export default function AthletesListPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Athletes" description="Registered athletes. Toggle visibility to control who appears on the public roster." />
+      <PageHeader title="Athletes" description="Registered athletes. Review submissions and manage visibility." />
+      <StatusFilterChips value={bucket} onChange={setBucket} counts={counts.data} />
       <DataTable
         columns={columns}
         data={data?.items ?? []}
         isLoading={isLoading}
         isError={isError}
-        emptyMessage="No athlete registrations yet."
+        emptyMessage={bucket === "PENDING" ? "Nothing to review. New submissions will appear here." : "No athletes in this bucket."}
         onRowClick={(a) => router.push(`/athletes/${a.id}`)}
         search={{
           value: search,
@@ -169,7 +212,7 @@ export default function AthletesListPage() {
         open={!!moderating}
         onOpenChange={(o) => !o && setModerating(null)}
         action={moderating?.action ?? null}
-        subjectName={moderating?.athlete.fullName ?? ""}
+        subjectName={moderating?.athlete.fullName ?? "this athlete"}
         onConfirm={async (reason) => {
           if (moderating) await statusMutation.mutateAsync({ id: moderating.athlete.id, status: moderating.action, reason });
         }}
@@ -178,7 +221,7 @@ export default function AthletesListPage() {
         open={!!reactivating}
         onOpenChange={(o) => !o && setReactivating(null)}
         title="Reactivate athlete?"
-        description={reactivating ? `${reactivating.fullName} will be able to log in again and reappear on the public roster.` : ""}
+        description={reactivating ? `${reactivating.fullName ?? "This athlete"} will be able to log in again and reappear on the public roster.` : ""}
         confirmLabel="Reactivate"
         onConfirm={async () => { if (reactivating) await statusMutation.mutateAsync({ id: reactivating.id, status: "ACTIVE" }); }}
       />
