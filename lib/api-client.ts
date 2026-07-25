@@ -1,4 +1,5 @@
 import type { ApiResponse, ApiError } from "./types";
+import { ADMIN_SESSION_KEYS } from "./session-keys";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
 
@@ -52,15 +53,48 @@ export function registerAuthAdapter(opts: {
 let refreshHandler: (() => Promise<string | null>) = async () => null;
 let inFlightRefresh: Promise<string | null> | null = null;
 
+// SSR-safe sessionStorage helpers — hoisted here so both performRefresh and
+// api.logout can read/write the same token without exporting internals.
+function readAdminRt(): string | null {
+  if (typeof window === "undefined") return null;
+  try { return sessionStorage.getItem(ADMIN_SESSION_KEYS.refreshToken); } catch { return null; }
+}
+function writeAdminRt(rt: string): void {
+  if (typeof window === "undefined") return;
+  try { sessionStorage.setItem(ADMIN_SESSION_KEYS.refreshToken, rt); } catch { /* ignore */ }
+}
+function clearAdminRt(): void {
+  if (typeof window === "undefined") return;
+  try { sessionStorage.removeItem(ADMIN_SESSION_KEYS.refreshToken); } catch { /* ignore */ }
+}
+
 async function performRefresh(): Promise<string | null> {
+  const rt = readAdminRt();
+  if (!rt) return null; // nothing to refresh with — treat as anonymous
   try {
     const res = await fetch(`${API_URL}/admin/auth/token/refresh`, {
       method: "POST",
-      credentials: "include", // sends the httpOnly refresh cookie
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken: rt }),
     });
-    if (!res.ok) return null;
-    const body = (await res.json()) as ApiResponse<{ accessToken: string }>;
-    return body.success ? body.data.accessToken : null;
+    if (!res.ok) {
+      // Server rejected the token (invalid / revoked / expired). Purge it so
+      // we don't keep offering the same dead token on every call.
+      clearAdminRt();
+      return null;
+    }
+    const body = (await res.json()) as ApiResponse<{
+      accessToken: string;
+      refreshToken: string;
+      refreshExpiresAt: string;
+    }>;
+    if (!body.success) {
+      clearAdminRt();
+      return null;
+    }
+    // Persist the rotated refresh token so the NEXT refresh call has fresh state.
+    writeAdminRt(body.data.refreshToken);
+    return body.data.accessToken;
   } catch {
     return null;
   }
@@ -109,7 +143,6 @@ async function coreFetch<T>(path: string, opts: RequestOptions = {}): Promise<T>
 
   const res = await fetch(buildUrl(path, opts.query), {
     method: opts.method ?? "GET",
-    credentials: "include",
     headers,
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   });
@@ -180,7 +213,11 @@ export const api = {
     return coreFetch<T>("/admin/auth/login", { method: "POST", body, skipAuth: true });
   },
   logout() {
-    return coreFetch<void>("/admin/auth/logout", { method: "POST" });
+    const rt = readAdminRt();
+    return coreFetch<void>("/admin/auth/logout", {
+      method: "POST",
+      body: rt ? { refreshToken: rt } : undefined,
+    });
   },
   // Special: fetch CSV as text (newsletter export)
   getText(path: string) {
@@ -201,7 +238,6 @@ export async function getPaginated<T>(
 ): Promise<PaginatedResult<T>> {
   const res = await fetch(buildUrl(path, query), {
     method: "GET",
-    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...(getAccessToken() ? { Authorization: `Bearer ${getAccessToken()}` } : {}),
