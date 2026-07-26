@@ -182,10 +182,19 @@ export default function AthleteDetailPage() {
               <span className="text-sm text-muted-foreground">
                 {profile.discipline ?? "—"} · {profile.state ?? "—"}
               </span>
+              {profile.account?.email && (
+                <button
+                  onClick={() => copy(profile.account!.email, "Email")}
+                  className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 font-mono text-xs hover:bg-muted/70"
+                >
+                  {profile.account.email} <Copy className="h-3 w-3 opacity-60" />
+                </button>
+              )}
               {profile.account?.mobile && (
                 <button
                   onClick={() => copy(profile.account!.mobile!, "Mobile number")}
                   className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 font-mono text-xs hover:bg-muted/70"
+                  title="Contact mobile (optional profile field)"
                 >
                   {profile.account.mobile} <Copy className="h-3 w-3 opacity-60" />
                 </button>

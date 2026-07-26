@@ -208,8 +208,9 @@ export interface AthleteProfile {
   createdAt: string;
   updatedAt: string;
   account?: {
-    mobile: string;
-    email: string | null;
+    email: string;
+    emailVerified: boolean;
+    mobile: string | null;
     mobileVerified: boolean;
     status: AccountStatus;
     statusReason: string | null;
@@ -250,8 +251,9 @@ export interface AssociationProfile {
   createdAt: string;
   updatedAt: string;
   account?: {
-    mobile: string;
-    email: string | null;
+    email: string;
+    emailVerified: boolean;
+    mobile: string | null;
     status: AccountStatus;
     statusReason: string | null;
   };

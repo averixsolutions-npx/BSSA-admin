@@ -282,6 +282,7 @@ export default function AssociationDetailPage() {
       {/* Registered date footer */}
       <p className="text-xs text-muted-foreground">
         Registered {format(new Date(assoc.createdAt), "d MMM yyyy")}
+        {assoc.account?.email && <> · {assoc.account.email}</>}
         {assoc.account?.mobile && <> · {assoc.account.mobile}</>}
       </p>
 

@@ -123,7 +123,14 @@ export default function AthletesListPage() {
         return <span className="text-sm text-muted-foreground">{t ? format(new Date(t), "d MMM yyyy") : "—"}</span>;
       },
     },
-    { header: "Mobile", cell: ({ row }) => <span className="text-muted-foreground">{row.original.account?.mobile ?? "—"}</span> },
+    {
+      header: "Email",
+      cell: ({ row }) => (
+        <span className="text-muted-foreground truncate max-w-[220px] block">
+          {row.original.account?.email ?? "—"}
+        </span>
+      ),
+    },
     {
       header: "Visible",
       id: "visible",
