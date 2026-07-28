@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "@/lib/auth-store";
 import { dashboardService } from "@/lib/services/dashboard";
@@ -15,10 +16,10 @@ export default function DashboardPage() {
   });
 
   const cards = [
-    { title: "Published news", value: data?.publishedNews, icon: Newspaper, description: "Live articles" },
-    { title: "Upcoming events", value: data?.upcomingEvents, icon: Calendar, description: "Scheduled" },
-    { title: "Registered athletes", value: data?.registeredAthletes, icon: Users, description: "All-time" },
-    { title: "Enquiries", value: data?.totalEnquiries, icon: Inbox, description: "Total received" },
+    { title: "Published news", value: data?.publishedNews, icon: Newspaper, description: "Live articles", href: "/news" },
+    { title: "Upcoming events", value: data?.upcomingEvents, icon: Calendar, description: "Scheduled", href: "/events" },
+    { title: "Registered athletes", value: data?.registeredAthletes, icon: Users, description: "All-time", href: "/athletes" },
+    { title: "Enquiries", value: data?.totalEnquiries, icon: Inbox, description: "Total received", href: "/enquiries" },
   ];
 
   return (
@@ -32,16 +33,22 @@ export default function DashboardPage() {
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {cards.map((c) => (
-          <Card key={c.title}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardDescription>{c.title}</CardDescription>
-              <c.icon className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <CardTitle className="text-3xl">{c.value ?? "—"}</CardTitle>
-              <p className="text-xs text-muted-foreground mt-1">{c.description}</p>
-            </CardContent>
-          </Card>
+          <Link
+            key={c.title}
+            href={c.href}
+            className="rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Card className="h-full cursor-pointer transition-colors hover:border-primary/40 hover:bg-accent/40">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardDescription>{c.title}</CardDescription>
+                <c.icon className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <CardTitle className="text-3xl">{c.value ?? "—"}</CardTitle>
+                <p className="text-xs text-muted-foreground mt-1">{c.description}</p>
+              </CardContent>
+            </Card>
+          </Link>
         ))}
       </div>
     </div>

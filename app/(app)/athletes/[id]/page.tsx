@@ -35,6 +35,15 @@ export default function AthleteDetailPage() {
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
 
+  // Go back to the list the way we came, preserving its ?bucket= filter.
+  const goBackToList = () => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push("/athletes");
+    }
+  };
+
   const [reviewingAch, setReviewingAch] = useState<{ item: AthleteAchievement; label: string } | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
@@ -151,7 +160,7 @@ export default function AthleteDetailPage() {
 
   return (
     <div className="space-y-8">
-      <Button variant="ghost" size="sm" onClick={() => router.push("/athletes")} className="-ml-2">
+      <Button variant="ghost" size="sm" onClick={goBackToList} className="-ml-2">
         <ArrowLeft className="h-4 w-4" />Back to athletes
       </Button>
 

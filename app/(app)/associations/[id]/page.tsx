@@ -27,6 +27,15 @@ export default function AssociationDetailPage() {
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
 
+  // Go back to the list the way we came, preserving its ?bucket= filter.
+  const goBackToList = () => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push("/associations");
+    }
+  };
+
   const [moderating, setModerating] = useState<"SUSPENDED" | "BLACKLISTED" | null>(null);
   const [reactivating, setReactivating] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -141,7 +150,7 @@ export default function AssociationDetailPage() {
 
   return (
     <div className="space-y-8">
-      <Button variant="ghost" size="sm" onClick={() => router.push("/associations")} className="-ml-2">
+      <Button variant="ghost" size="sm" onClick={goBackToList} className="-ml-2">
         <ArrowLeft className="h-4 w-4" /> Back to associations
       </Button>
 

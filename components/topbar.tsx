@@ -2,6 +2,7 @@
 import { useRouter } from "next/navigation";
 import { LogOut, ExternalLink } from "lucide-react";
 import { useAuthStore } from "@/lib/auth-store";
+import { MobileNav } from "./mobile-nav";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Button } from "./ui/button";
 import {
@@ -34,7 +35,10 @@ export function Topbar() {
 
   return (
     <header className="flex h-16 items-center justify-between border-b bg-background px-6">
-      <div className="text-sm text-muted-foreground">Admin panel</div>
+      <div className="flex items-center gap-2">
+        <MobileNav />
+        <span className="text-sm text-muted-foreground">Admin panel</span>
+      </div>
       <div className="flex items-center gap-2">
         {siteUrl && (
           <Button variant="ghost" size="sm" asChild>

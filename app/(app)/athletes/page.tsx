@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
@@ -28,7 +28,23 @@ export default function AthletesListPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
-  const [bucket, setBucket] = useState<QueueBucket>("PENDING");
+
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // Filter lives in the URL (?bucket=…) so it survives Back-navigation.
+  // Default is "ALL" — show everyone on first load.
+  const rawBucket = searchParams.get("bucket");
+  const bucket: QueueBucket = QUEUE_BUCKETS.some((b) => b.key === rawBucket)
+    ? (rawBucket as QueueBucket)
+    : "ALL";
+
+  const setBucket = (next: QueueBucket) => {
+    const sp = new URLSearchParams(searchParams.toString());
+    sp.set("bucket", next);
+    router.replace(`${pathname}?${sp.toString()}`); // replace: don't spam history on chip clicks
+    setPage(1);
+  };
 
   // Which athlete is being moderated, and to what target status.
   const [moderating, setModerating] = useState<{ athlete: AthleteProfile; action: "SUSPENDED" | "BLACKLISTED" } | null>(null);
@@ -46,9 +62,6 @@ export default function AthletesListPage() {
       ? { submissionStatusIn: bucketConfig.statuses }
       : {}),
   };
-
-  // Reset page whenever the bucket changes.
-  useEffect(() => setPage(1), [bucket]);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["athletes", "list", listParams],

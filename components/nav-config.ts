@@ -31,6 +31,13 @@ export interface NavGroup {
 
 export const NAV_GROUPS: NavGroup[] = [
   {
+    label: "Registrations",
+    items: [
+      { label: "Athletes", href: "/athletes", icon: UserCog },
+      { label: "Associations", href: "/associations", icon: Building2 },
+    ],
+  },
+  {
     label: "Overview",
     items: [{ label: "Dashboard", href: "/dashboard", icon: LayoutDashboard }],
   },
@@ -53,13 +60,6 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "State associations", href: "/state-associations", icon: MapPin },
       { label: "About content", href: "/about", icon: FileText },
       { label: "Site stats", href: "/stats", icon: BarChart3 },
-    ],
-  },
-  {
-    label: "Registrations",
-    items: [
-      { label: "Athletes", href: "/athletes", icon: UserCog },
-      { label: "Associations", href: "/associations", icon: Building2 },
     ],
   },
   {
