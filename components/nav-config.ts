@@ -31,15 +31,15 @@ export interface NavGroup {
 
 export const NAV_GROUPS: NavGroup[] = [
   {
+    label: "Overview",
+    items: [{ label: "Dashboard", href: "/dashboard", icon: LayoutDashboard }],
+  },
+  {
     label: "Registrations",
     items: [
       { label: "Athletes", href: "/athletes", icon: UserCog },
       { label: "Associations", href: "/associations", icon: Building2 },
     ],
-  },
-  {
-    label: "Overview",
-    items: [{ label: "Dashboard", href: "/dashboard", icon: LayoutDashboard }],
   },
   {
     label: "Content",

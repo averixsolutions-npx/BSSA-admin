@@ -5,7 +5,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { MoreHorizontal, Ban, ShieldAlert, RotateCcw } from "lucide-react";
 
 import { associationsAdminService } from "@/lib/services/associations-admin";
 import type { AssociationProfile } from "@/lib/types";
@@ -17,10 +16,6 @@ import { AccountStatusBadge } from "@/components/account-status-badge";
 import { SubmissionStatusBadge } from "@/components/submission-status-badge";
 import { StatusFilterChips, QUEUE_BUCKETS, type QueueBucket } from "@/components/status-filter-chips";
 import { useQueueCounts } from "@/components/hooks/use-queue-counts";
-import { ModerationDialog } from "@/components/moderation-dialog";
-import { ConfirmDialog } from "@/components/confirm-dialog";
-import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 
 export default function AssociationsListPage() {
   const router = useRouter();
@@ -45,10 +40,6 @@ export default function AssociationsListPage() {
     setPage(1);
   };
 
-  // Which association is being moderated, and to what target status.
-  const [moderating, setModerating] = useState<{ assoc: AssociationProfile; action: "SUSPENDED" | "BLACKLISTED" } | null>(null);
-  const [reactivating, setReactivating] = useState<AssociationProfile | null>(null);
-
   const counts = useQueueCounts("associations");
   const bucketConfig = QUEUE_BUCKETS.find((b) => b.key === bucket)!;
   const listParams = {
@@ -70,16 +61,6 @@ export default function AssociationsListPage() {
   const publishMutation = useMutation({
     mutationFn: ({ id, isPublished }: { id: string; isPublished: boolean }) => associationsAdminService.setPublished(id, isPublished),
     onSuccess: (_, vars) => { qc.invalidateQueries({ queryKey: ["associations"] }); toast.success(vars.isPublished ? "Published" : "Unpublished"); },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
-  });
-
-  const statusMutation = useMutation({
-    mutationFn: ({ id, status, reason }: { id: string; status: "ACTIVE" | "SUSPENDED" | "BLACKLISTED"; reason?: string }) =>
-      associationsAdminService.setStatus(id, status, reason),
-    onSuccess: (_, v) => {
-      qc.invalidateQueries({ queryKey: ["associations"] });
-      toast.success(v.status === "ACTIVE" ? "Reactivated" : v.status === "SUSPENDED" ? "Suspended" : "Blacklisted");
-    },
     onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
   });
 
@@ -171,47 +152,6 @@ export default function AssociationsListPage() {
         );
       },
     },
-    {
-      header: "",
-      id: "actions",
-      cell: ({ row }) => {
-        const a = row.original;
-        const status = a.account?.status ?? "ACTIVE";
-        return (
-          <span onClick={(e) => e.stopPropagation()}>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {status === "ACTIVE" ? (
-                  <>
-                    <DropdownMenuItem onClick={() => setModerating({ assoc: a, action: "SUSPENDED" })}>
-                      <Ban className="mr-2 h-4 w-4" />Suspend
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="text-destructive" onClick={() => setModerating({ assoc: a, action: "BLACKLISTED" })}>
-                      <ShieldAlert className="mr-2 h-4 w-4" />Blacklist
-                    </DropdownMenuItem>
-                  </>
-                ) : (
-                  <>
-                    <DropdownMenuItem onClick={() => setReactivating(a)}>
-                      <RotateCcw className="mr-2 h-4 w-4" />Reactivate
-                    </DropdownMenuItem>
-                    {status === "SUSPENDED" && (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-destructive" onClick={() => setModerating({ assoc: a, action: "BLACKLISTED" })}>
-                          <ShieldAlert className="mr-2 h-4 w-4" />Blacklist
-                        </DropdownMenuItem>
-                      </>
-                    )}
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </span>
-        );
-      },
-    },
   ];
 
   return (
@@ -231,24 +171,6 @@ export default function AssociationsListPage() {
           placeholder: "Search by name…",
         }}
         pagination={data ? { page: data.meta.page, limit: data.meta.limit, total: data.meta.total, totalPages: data.meta.totalPages, onPageChange: setPage } : undefined}
-      />
-
-      <ModerationDialog
-        open={!!moderating}
-        onOpenChange={(o) => !o && setModerating(null)}
-        action={moderating?.action ?? null}
-        subjectName={moderating?.assoc.name ?? "this association"}
-        onConfirm={async (reason) => {
-          if (moderating) await statusMutation.mutateAsync({ id: moderating.assoc.id, status: moderating.action, reason });
-        }}
-      />
-      <ConfirmDialog
-        open={!!reactivating}
-        onOpenChange={(o) => !o && setReactivating(null)}
-        title="Reactivate association?"
-        description={reactivating ? `${reactivating.name ?? "This association"} will be able to log in again and reappear in the public directory.` : ""}
-        confirmLabel="Reactivate"
-        onConfirm={async () => { if (reactivating) await statusMutation.mutateAsync({ id: reactivating.id, status: "ACTIVE" }); }}
       />
     </div>
   );

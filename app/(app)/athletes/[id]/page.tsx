@@ -26,6 +26,9 @@ import { DocumentsReviewGrid } from "@/components/documents-review-grid";
 import { DOCUMENT_REJECTION_TEMPLATES } from "@/components/rejection-templates";
 import { DocumentStatusBadge } from "@/components/document-status-badge";
 import { DocumentReviewDialog } from "@/components/document-review-dialog";
+import { ProfileActionsBar } from "@/components/profile-actions-bar";
+import { ModerationDialog } from "@/components/moderation-dialog";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ImageLightbox, type LightboxImage } from "@/components/image-lightbox";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +49,9 @@ export default function AthleteDetailPage() {
 
   const [reviewingAch, setReviewingAch] = useState<{ item: AthleteAchievement; label: string } | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [moderating, setModerating] = useState<"SUSPENDED" | "BLACKLISTED" | null>(null);
+  const [reactivating, setReactivating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const { data: profile, isLoading: profileLoading } = useQuery({
     queryKey: ["athletes", "detail", id],
@@ -99,6 +105,28 @@ export default function AthleteDetailPage() {
       toast.success("Profile rejected — user has been notified");
     },
     onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed to reject"),
+  });
+
+  const statusMutation = useMutation({
+    mutationFn: ({ status, reason }: { status: "ACTIVE" | "SUSPENDED" | "BLACKLISTED"; reason?: string }) =>
+      athletesAdminService.setStatus(id, status, reason),
+    onSuccess: (_, v) => {
+      qc.invalidateQueries({ queryKey: ["athletes", "detail", id] });
+      qc.invalidateQueries({ queryKey: ["athletes", "list"] });
+      toast.success(v.status === "ACTIVE" ? "Reactivated" : v.status === "SUSPENDED" ? "Suspended" : "Blacklisted");
+    },
+    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => athletesAdminService.remove(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["athletes"] });
+      qc.invalidateQueries({ queryKey: ["queue-counts", "athletes"] });
+      toast.success("Athlete deleted");
+      router.push("/athletes");
+    },
+    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Delete failed"),
   });
 
   const copy = (text: string, label: string) => {
@@ -213,6 +241,25 @@ export default function AthleteDetailPage() {
         />
       </div>
 
+      <ProfileActionsBar
+        status={profile.account?.status ?? "ACTIVE"}
+        onSuspend={() => setModerating("SUSPENDED")}
+        onBlacklist={() => setModerating("BLACKLISTED")}
+        onReactivate={() => setReactivating(true)}
+        onDelete={() => setDeleting(true)}
+        isPending={statusMutation.isPending || deleteMutation.isPending}
+      />
+
+      {/* Why the account is suspended/blacklisted, if it is. */}
+      {profile.account && profile.account.status !== "ACTIVE" && profile.account.statusReason && (
+        <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-4 text-sm">
+          <span className="font-medium text-red-600">
+            {profile.account.status === "BLACKLISTED" ? "Blacklisted" : "Suspended"}:
+          </span>{" "}
+          {profile.account.statusReason}
+        </div>
+      )}
+
       <ApproveRejectBar
         status={profile.submissionStatus}
         canApprove={canApprove}
@@ -307,6 +354,33 @@ export default function AthleteDetailPage() {
           if (!reviewingAch || status !== "REJECTED" || !reviewNote) return;
           await verifyAchMutation.mutateAsync({ achId: reviewingAch.item.id, status: "REJECTED", reviewNote });
         }}
+      />
+
+      <ModerationDialog
+        open={!!moderating}
+        onOpenChange={(o) => !o && setModerating(null)}
+        action={moderating}
+        subjectName={profile.fullName ?? "this athlete"}
+        onConfirm={async (reason) => {
+          if (moderating) await statusMutation.mutateAsync({ status: moderating, reason });
+        }}
+      />
+      <ConfirmDialog
+        open={reactivating}
+        onOpenChange={setReactivating}
+        title="Reactivate athlete?"
+        description={`${profile.fullName ?? "This athlete"} will be able to log in again and reappear on the public roster.`}
+        confirmLabel="Reactivate"
+        onConfirm={async () => { await statusMutation.mutateAsync({ status: "ACTIVE" }); }}
+      />
+      <ConfirmDialog
+        open={deleting}
+        onOpenChange={setDeleting}
+        title={`Delete ${profile.fullName ?? "this athlete"}?`}
+        description="This permanently deletes the account, profile, documents, achievements, and all uploaded files from storage. This cannot be undone."
+        confirmLabel="Delete permanently"
+        destructive
+        onConfirm={async () => { await deleteMutation.mutateAsync(); }}
       />
 
       <ImageLightbox

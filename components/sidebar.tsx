@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NAV_GROUPS } from "./nav-config";
@@ -28,12 +29,24 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden md:flex md:w-64 md:flex-col border-r bg-card">
-      <div className="flex h-16 items-center border-b px-6">
+    <aside
+      className={cn(
+        "hidden md:flex md:w-64 md:flex-col",
+        "border-r border-border/60",
+        "bg-gradient-to-b from-card via-card to-accent/30",
+        "shadow-[inset_-1px_0_0_0_hsl(var(--border)/0.4)]"
+      )}
+    >
+      <div className="flex h-16 items-center border-b border-border/60 px-6">
         <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
-          <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center">
-            <span className="text-primary-foreground text-sm font-bold">B</span>
-          </div>
+          <Image
+            src="/logo.jpeg"
+            alt="BSSA"
+            width={32}
+            height={32}
+            className="h-8 w-8 rounded-md object-cover"
+            priority
+          />
           <span>BSSA Admin</span>
         </Link>
       </div>
@@ -53,12 +66,16 @@ export function Sidebar() {
                       key={item.href}
                       href={item.href}
                       className={cn(
-                        "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                        "group relative flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium",
+                        "transition-all duration-200",
                         active
-                          ? "bg-accent text-accent-foreground"
-                          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground hover:translate-x-0.5"
                       )}
                     >
+                      {active && (
+                        <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-primary-foreground/70" />
+                      )}
                       <item.icon className="h-4 w-4" />
                       {item.label}
                       {QUEUE_HREFS[item.href] && <NavPendingPill href={item.href} />}

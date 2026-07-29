@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -28,9 +29,13 @@ export function MobileNav() {
         <Dialog.Content className="fixed inset-y-0 left-0 z-50 flex w-72 max-w-[82%] flex-col bg-card shadow-lg border-r md:hidden focus:outline-none data-[state=open]:animate-in data-[state=open]:slide-in-from-left">
           <div className="flex h-16 items-center justify-between border-b px-4">
             <Dialog.Title className="flex items-center gap-2 font-semibold">
-              <span className="flex h-8 w-8 items-center justify-center rounded-md bg-primary">
-                <span className="text-sm font-bold text-primary-foreground">B</span>
-              </span>
+              <Image
+                src="/logo.jpeg"
+                alt="BSSA"
+                width={32}
+                height={32}
+                className="h-8 w-8 rounded-md object-cover"
+              />
               BSSA Admin
             </Dialog.Title>
             <Dialog.Close

@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, ArrowLeft, Copy, Ban, ShieldAlert, RotateCcw } from "lucide-react";
+import { Loader2, ArrowLeft, Copy } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -16,6 +16,7 @@ import { ApproveRejectBar } from "@/components/approve-reject-bar";
 import { PendingChangesBanner } from "@/components/pending-changes-banner";
 import { RejectionReasonBanner } from "@/components/rejection-reason-banner";
 import { AssociationDocumentsGrid } from "@/components/association-documents-grid";
+import { ProfileActionsBar } from "@/components/profile-actions-bar";
 import { ModerationDialog } from "@/components/moderation-dialog";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ImageLightbox, type LightboxImage } from "@/components/image-lightbox";
@@ -38,6 +39,7 @@ export default function AssociationDetailPage() {
 
   const [moderating, setModerating] = useState<"SUSPENDED" | "BLACKLISTED" | null>(null);
   const [reactivating, setReactivating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const { data: assoc, isLoading } = useQuery({
@@ -69,6 +71,17 @@ export default function AssociationDetailPage() {
       toast.success(v.status === "ACTIVE" ? "Reactivated" : v.status === "SUSPENDED" ? "Suspended" : "Blacklisted");
     },
     onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => associationsAdminService.remove(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["associations"] });
+      qc.invalidateQueries({ queryKey: ["queue-counts", "associations"] });
+      toast.success("Association deleted");
+      router.push("/associations");
+    },
+    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Delete failed"),
   });
 
   const approveProfileMutation = useMutation({
@@ -200,6 +213,15 @@ export default function AssociationDetailPage() {
         }
       />
 
+      <ProfileActionsBar
+        status={status}
+        onSuspend={() => setModerating("SUSPENDED")}
+        onBlacklist={() => setModerating("BLACKLISTED")}
+        onReactivate={() => setReactivating(true)}
+        onDelete={() => setDeleting(true)}
+        isPending={statusMutation.isPending || deleteMutation.isPending}
+      />
+
       {/* Suspension reason banner */}
       {status !== "ACTIVE" && assoc.account?.statusReason && (
         <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-4 text-sm">
@@ -263,28 +285,6 @@ export default function AssociationDetailPage() {
           >
             {assoc.isPublished ? "Unpublish" : "Publish"}
           </Button>
-
-          {status === "ACTIVE" ? (
-            <>
-              <Button variant="outline" onClick={() => setModerating("SUSPENDED")}>
-                <Ban className="mr-2 h-4 w-4" /> Suspend
-              </Button>
-              <Button variant="destructive" onClick={() => setModerating("BLACKLISTED")}>
-                <ShieldAlert className="mr-2 h-4 w-4" /> Blacklist
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button variant="outline" onClick={() => setReactivating(true)}>
-                <RotateCcw className="mr-2 h-4 w-4" /> Reactivate
-              </Button>
-              {status === "SUSPENDED" && (
-                <Button variant="destructive" onClick={() => setModerating("BLACKLISTED")}>
-                  <ShieldAlert className="mr-2 h-4 w-4" /> Blacklist
-                </Button>
-              )}
-            </>
-          )}
         </div>
       </section>
 
@@ -311,6 +311,15 @@ export default function AssociationDetailPage() {
         description={`${assoc.name ?? "This association"} will be able to log in again and reappear in the public directory.`}
         confirmLabel="Reactivate"
         onConfirm={async () => { await statusMutation.mutateAsync({ status: "ACTIVE" }); }}
+      />
+      <ConfirmDialog
+        open={deleting}
+        onOpenChange={setDeleting}
+        title={`Delete ${assoc.name ?? "this association"}?`}
+        description="This permanently deletes the account, profile, documents, and all uploaded files from storage. This cannot be undone."
+        confirmLabel="Delete permanently"
+        destructive
+        onConfirm={async () => { await deleteMutation.mutateAsync(); }}
       />
 
       <ImageLightbox
