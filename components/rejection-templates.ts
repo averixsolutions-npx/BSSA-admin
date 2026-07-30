@@ -5,6 +5,7 @@ export const DOCUMENT_REJECTION_TEMPLATES = [
   "Document appears to be expired",
   "Name on document doesn't match profile",
   "Wrong document type uploaded",
+  "Anti-doping declaration must be signed — signature not visible",
 ];
 
 export const PROFILE_REJECTION_TEMPLATES = [

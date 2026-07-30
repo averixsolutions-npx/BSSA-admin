@@ -7,6 +7,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { Menu, X } from "lucide-react";
 import { NAV_GROUPS } from "./nav-config";
 import { cn } from "@/lib/utils";
+import { ORG_NAME } from "@/lib/brand";
 
 export function MobileNav() {
   const pathname = usePathname();
@@ -28,15 +29,18 @@ export function MobileNav() {
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 md:hidden data-[state=open]:animate-in data-[state=open]:fade-in" />
         <Dialog.Content className="fixed inset-y-0 left-0 z-50 flex w-72 max-w-[82%] flex-col bg-card shadow-lg border-r md:hidden focus:outline-none data-[state=open]:animate-in data-[state=open]:slide-in-from-left">
           <div className="flex h-16 items-center justify-between border-b px-4">
-            <Dialog.Title className="flex items-center gap-2 font-semibold">
+            <Dialog.Title className="flex min-w-0 items-center gap-2 font-semibold">
               <Image
                 src="/logo.jpeg"
-                alt="BSSA"
+                alt={ORG_NAME}
                 width={32}
                 height={32}
-                className="h-8 w-8 rounded-md object-cover"
+                className="h-8 w-8 shrink-0 rounded-md object-cover"
               />
-              BSSA Admin
+              <span className="flex min-w-0 flex-col leading-tight">
+                <span className="truncate text-sm font-bold" title={ORG_NAME}>{ORG_NAME}</span>
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Admin</span>
+              </span>
             </Dialog.Title>
             <Dialog.Close
               aria-label="Close menu"

@@ -8,7 +8,7 @@ import { eventsService } from "@/lib/services/events";
 import { ApiCallError } from "@/lib/api-client";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
-import { EventForm, type EventFormValues } from "../event-form";
+import { EventForm, toRegistrationInput, type EventFormValues } from "../event-form";
 
 export default function NewEventPage() {
   const router = useRouter();
@@ -25,6 +25,7 @@ export default function NewEventPage() {
         startDate: values.startDate,
         endDate: values.endDate,
         resultsPdfUrl: values.resultsPdfUrl ?? undefined,
+        ...toRegistrationInput(values),
       }),
     onSuccess: (event) => {
       qc.invalidateQueries({ queryKey: ["events"] });

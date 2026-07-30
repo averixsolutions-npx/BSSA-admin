@@ -12,8 +12,9 @@ import { StatusBadge } from "@/components/status-badge";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
-import { EventForm, type EventFormValues } from "../event-form";
+import { EventForm, toRegistrationInput, type EventFormValues } from "../event-form";
 import { ResultsEditor } from "../results-editor";
+import { EventRegistrationsTable } from "@/components/event-registrations-table";
 
 export default function EditEventPage() {
   const router = useRouter();
@@ -38,6 +39,7 @@ export default function EditEventPage() {
         startDate: v.startDate,
         endDate: v.endDate,
         resultsPdfUrl: v.resultsPdfUrl ?? undefined,
+        ...toRegistrationInput(v),
       }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["events"] }); toast.success("Saved"); },
     onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
@@ -71,6 +73,16 @@ export default function EditEventPage() {
       <Separator className="my-8" />
 
       <ResultsEditor eventId={id} />
+
+      {event.registrationEnabled && (
+        <>
+          <Separator className="my-8" />
+          <section className="space-y-3">
+            <h3 className="text-lg font-semibold">Registrations</h3>
+            <EventRegistrationsTable eventId={id} fields={event.registrationFields ?? []} />
+          </section>
+        </>
+      )}
 
       <ConfirmDialog open={confirmDelete} onOpenChange={setConfirmDelete} title="Delete event?" description={`"${event.title}" and all results will be permanently deleted.`} confirmLabel="Delete" destructive onConfirm={() => deleteM.mutateAsync()} />
     </div>

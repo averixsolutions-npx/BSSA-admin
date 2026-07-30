@@ -8,6 +8,7 @@ import { toast } from "sonner";
 
 import { associationsAdminService } from "@/lib/services/associations-admin";
 import { associationDocumentsService } from "@/lib/services/association-documents";
+import { memberMediaService } from "@/lib/services/member-media";
 import { ApiCallError } from "@/lib/api-client";
 import { PageHeader } from "@/components/page-header";
 import { AccountStatusBadge } from "@/components/account-status-badge";
@@ -20,6 +21,7 @@ import { ProfileActionsBar } from "@/components/profile-actions-bar";
 import { ModerationDialog } from "@/components/moderation-dialog";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ImageLightbox, type LightboxImage } from "@/components/image-lightbox";
+import { MemberMediaGallery } from "@/components/member-media-gallery";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
@@ -51,6 +53,12 @@ export default function AssociationDetailPage() {
   const { data: docs = [] } = useQuery({
     queryKey: ["association-documents", id],
     queryFn: () => associationDocumentsService.list(id),
+    enabled: !!id,
+  });
+
+  const { data: media = [] } = useQuery({
+    queryKey: ["association-media", id],
+    queryFn: () => memberMediaService.listForAssociation(id),
     enabled: !!id,
   });
 
@@ -146,7 +154,6 @@ export default function AssociationDetailPage() {
 
   // Photos → lightbox (only those that exist)
   const images: LightboxImage[] = [
-    ...(assoc.coverUrl ? [{ url: assoc.coverUrl, label: `${assoc.name ?? "Association"} — cover` }] : []),
     ...(assoc.logoUrl ? [{ url: assoc.logoUrl, label: `${assoc.name ?? "Association"} — logo` }] : []),
   ];
 
@@ -167,30 +174,16 @@ export default function AssociationDetailPage() {
         <ArrowLeft className="h-4 w-4" /> Back to associations
       </Button>
 
-      {/* Cover + logo banner (only if photos exist) */}
-      {(assoc.coverUrl || assoc.logoUrl) && (
-        <div className="relative overflow-hidden rounded-xl border bg-card">
-          <button
-            type="button"
-            onClick={() => assoc.coverUrl && setLightboxIndex(0)}
-            className="block h-40 w-full bg-muted"
-          >
-            {assoc.coverUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={assoc.coverUrl} alt="" className="h-full w-full object-cover" />
-            )}
-          </button>
-          {assoc.logoUrl && (
-            <button
-              type="button"
-              onClick={() => setLightboxIndex(assoc.coverUrl ? 1 : 0)}
-              className="absolute bottom-3 left-4 h-16 w-16 overflow-hidden rounded-lg border-2 border-background bg-muted"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={assoc.logoUrl} alt="" className="h-full w-full object-cover" />
-            </button>
-          )}
-        </div>
+      {/* Logo (only if uploaded) */}
+      {assoc.logoUrl && (
+        <button
+          type="button"
+          onClick={() => setLightboxIndex(0)}
+          className="relative h-20 w-20 overflow-hidden rounded-lg border bg-muted"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={assoc.logoUrl} alt="" className="h-full w-full object-cover" />
+        </button>
       )}
 
       <PageHeader
@@ -198,7 +191,7 @@ export default function AssociationDetailPage() {
         description={
           <div className="mt-1 flex flex-wrap items-center gap-2">
             {assoc.bssaId && (
-              <button onClick={() => copy(assoc.bssaId!, "BSSA ID")}
+              <button onClick={() => copy(assoc.bssaId!, "Member ID")}
                 className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 font-mono text-xs hover:bg-muted/70">
                 {assoc.bssaId} <Copy className="h-3 w-3 opacity-60" />
               </button>
@@ -212,6 +205,19 @@ export default function AssociationDetailPage() {
           </div>
         }
       />
+
+      {/* Member-authored bio & social links (read-only for admins) */}
+      {(assoc.bio || assoc.instagramUrl || assoc.youtubeUrl || assoc.facebookUrl) && (
+        <section className="space-y-2 rounded-lg border p-4">
+          <h2 className="text-sm font-semibold">About</h2>
+          {assoc.bio && <p className="whitespace-pre-line text-sm text-muted-foreground">{assoc.bio}</p>}
+          <div className="flex flex-wrap gap-3 text-xs">
+            {assoc.instagramUrl && <a href={assoc.instagramUrl} target="_blank" rel="noreferrer" className="underline">Instagram</a>}
+            {assoc.youtubeUrl && <a href={assoc.youtubeUrl} target="_blank" rel="noreferrer" className="underline">YouTube</a>}
+            {assoc.facebookUrl && <a href={assoc.facebookUrl} target="_blank" rel="noreferrer" className="underline">Facebook</a>}
+          </div>
+        </section>
+      )}
 
       <ProfileActionsBar
         status={status}
@@ -266,6 +272,8 @@ export default function AssociationDetailPage() {
       </section>
 
       <AssociationDocumentsGrid associationId={id} />
+
+      <MemberMediaGallery items={media} />
 
       {/* Actions */}
       <section className="space-y-3">

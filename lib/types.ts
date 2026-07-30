@@ -89,6 +89,12 @@ export interface Event {
   createdAt: string;
   updatedAt: string;
   results?: EventResult[];
+  // Registration config (optional — older events may predate it)
+  registrationEnabled?: boolean;
+  registrationOpensAt?: string | null;
+  registrationClosesAt?: string | null;
+  allowedRegistrants?: RegistrantType[];
+  registrationFields?: RegistrationField[];
 }
 
 export interface EventResult {
@@ -101,6 +107,10 @@ export interface EventResult {
   resultValue: string;
   remarks: string | null;
   sortOrder: number;
+  // Set when the result is tagged to a registered member
+  athleteProfileId?: string | null;
+  associationProfileId?: string | null;
+  timing?: string | null;
 }
 
 export interface MediaItem {
@@ -178,11 +188,10 @@ export interface AthleteSnapshot {
   fullName: string;
   dob: string;
   gender: string;
-  discipline: string;
+  disciplines: string[];
   state: string;
   address: string | null;
   photoUrl: string | null;
-  coverUrl: string | null;
   snapshotAt: string;
 }
 
@@ -191,13 +200,20 @@ export interface AthleteProfile {
   accountId: string;
   bssaId: string | null;
   fullName: string | null;
+  firstName: string | null;
+  lastName: string | null;
   dob: string | null;
   gender: string | null;
-  discipline: string | null;
+  disciplines: string[];
+  fisId: string | null;
+  aadhaarLayout: AadhaarLayout | null;
   state: string | null;
   address: string | null;
   photoUrl: string | null;
-  coverUrl: string | null;
+  bio: string | null;
+  instagramUrl: string | null;
+  youtubeUrl: string | null;
+  facebookUrl: string | null;
   isPublished: boolean;
   submissionStatus: SubmissionStatus;
   submittedAt: string | null;
@@ -240,7 +256,10 @@ export interface AssociationProfile {
   email: string | null;
   address: string | null;
   logoUrl: string | null;
-  coverUrl: string | null;
+  bio: string | null;
+  instagramUrl: string | null;
+  youtubeUrl: string | null;
+  facebookUrl: string | null;
   isPublished: boolean;
   submissionStatus: SubmissionStatus;
   submittedAt: string | null;
@@ -263,6 +282,9 @@ export interface AssociationProfile {
 
 export type AthleteDocumentType =
   | "AADHAAR"
+  | "AADHAAR_FRONT"
+  | "AADHAAR_BACK"
+  | "BIRTH_CERTIFICATE"
   | "PAN"
   | "TENTH_MARKSHEET"
   | "PASSPORT"
@@ -270,17 +292,17 @@ export type AthleteDocumentType =
   | "ANTI_DOPING_DECLARATION"
   | "FITNESS_CERTIFICATE";
 
-export const MANDATORY_DOCUMENT_TYPES: AthleteDocumentType[] = ["AADHAAR", "PAN", "TENTH_MARKSHEET"];
-export const OPTIONAL_DOCUMENT_TYPES: AthleteDocumentType[] = [
-  "PASSPORT",
-  "HEALTH_INSURANCE",
-  "ANTI_DOPING_DECLARATION",
-  "FITNESS_CERTIFICATE",
+export const ALL_DOCUMENT_TYPES: AthleteDocumentType[] = [
+  "AADHAAR", "AADHAAR_FRONT", "AADHAAR_BACK", "BIRTH_CERTIFICATE",
+  "PAN", "TENTH_MARKSHEET", "PASSPORT", "HEALTH_INSURANCE",
+  "ANTI_DOPING_DECLARATION", "FITNESS_CERTIFICATE",
 ];
-export const ALL_DOCUMENT_TYPES: AthleteDocumentType[] = [...MANDATORY_DOCUMENT_TYPES, ...OPTIONAL_DOCUMENT_TYPES];
 
 export const DOCUMENT_TYPE_LABELS: Record<AthleteDocumentType, string> = {
   AADHAAR: "Aadhaar Card",
+  AADHAAR_FRONT: "Aadhaar — Front",
+  AADHAAR_BACK: "Aadhaar — Back",
+  BIRTH_CERTIFICATE: "Birth Certificate",
   PAN: "PAN Card",
   TENTH_MARKSHEET: "10th Mark Sheet",
   PASSPORT: "Passport",
@@ -288,6 +310,16 @@ export const DOCUMENT_TYPE_LABELS: Record<AthleteDocumentType, string> = {
   ANTI_DOPING_DECLARATION: "Anti-Doping Declaration",
   FITNESS_CERTIFICATE: "Fitness Certificate",
 };
+
+export type AadhaarLayout = "SINGLE" | "FRONT_BACK";
+
+// Mandatory set is dynamic — mirrors backend requiredDocTypesFor().
+export function requiredDocTypesFor(layout: AadhaarLayout | null | undefined): AthleteDocumentType[] {
+  const base: AthleteDocumentType[] = ["BIRTH_CERTIFICATE", "ANTI_DOPING_DECLARATION"];
+  if (layout === "FRONT_BACK") return ["AADHAAR_FRONT", "AADHAAR_BACK", ...base];
+  if (layout === "SINGLE") return ["AADHAAR", ...base];
+  return base;
+}
 
 export type VerificationStatus = "PENDING" | "APPROVED" | "REJECTED";
 
@@ -367,6 +399,67 @@ export interface AssociationDocument {
   uploadedAt: string;
   updatedAt: string;
   viewUrl: string;
+}
+
+// ─── Member-uploaded media & self-declared results ────
+
+export type MemberMediaKind = "IMAGE" | "VIDEO_EMBED";
+
+export interface MemberMedia {
+  id: string;
+  kind: MemberMediaKind;
+  imageUrl: string | null;
+  platform: MediaPlatform | null;
+  sourceUrl: string | null;
+  embedId: string | null;
+  caption: string | null;
+  sortOrder: number;
+}
+
+export interface MemberPastResult {
+  id: string;
+  eventName: string;
+  year: number;
+  discipline: string | null;
+  category: string | null;
+  rank: number | null;
+  timing: string | null;
+  location: string | null;
+  description: string | null;
+  proofFileKey: string | null;
+  status: VerificationStatus;
+  reviewNote: string | null;
+  viewUrl?: string; // present when a proof was uploaded
+}
+
+// ─── Event registration ───────────────────────────────
+
+export type RegistrationStatus = "PENDING" | "CONFIRMED" | "WAITLISTED" | "CANCELLED";
+
+export type RegistrantType = "ATHLETE" | "ASSOCIATION";
+
+export type RegistrationFieldType = "text" | "number" | "select" | "date" | "checkbox";
+
+export interface RegistrationField {
+  key: string;
+  label: string;
+  type: RegistrationFieldType;
+  required: boolean;
+  options?: string[];
+}
+
+export interface EventRegistration {
+  id: string;
+  eventId: string;
+  registrantType: RegistrantType;
+  athleteProfileId: string | null;
+  associationProfileId: string | null;
+  answers: Record<string, string | number | boolean>;
+  status: RegistrationStatus;
+  createdAt: string;
+  account?: { email: string };
+  athleteProfile?: { id: string; fullName: string | null; bssaId: string | null };
+  associationProfile?: { id: string; name: string | null; bssaId: string | null };
 }
 
 export interface Enquiry {

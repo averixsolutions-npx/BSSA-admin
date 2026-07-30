@@ -1,5 +1,13 @@
 import { api, getPaginated } from "@/lib/api-client";
-import type { Event, EventResult, ContentStatus } from "@/lib/types";
+import type {
+  Event,
+  EventRegistration,
+  EventResult,
+  ContentStatus,
+  RegistrantType,
+  RegistrationField,
+  RegistrationStatus,
+} from "@/lib/types";
 
 export interface EventListParams {
   page: number;
@@ -17,6 +25,11 @@ export interface EventCreateInput {
   startDate: string;
   endDate: string;
   resultsPdfUrl?: string;
+  registrationEnabled?: boolean;
+  registrationOpensAt?: string;
+  registrationClosesAt?: string;
+  allowedRegistrants?: RegistrantType[];
+  registrationFields?: RegistrationField[];
 }
 
 export type EventUpdateInput = Partial<EventCreateInput>;
@@ -29,6 +42,9 @@ export interface ResultCreateInput {
   resultValue: string;
   remarks?: string;
   sortOrder?: number;
+  athleteProfileId?: string;
+  associationProfileId?: string;
+  timing?: string;
 }
 
 export type ResultUpdateInput = Partial<ResultCreateInput>;
@@ -55,4 +71,10 @@ export const eventsService = {
     api.patch<EventResult>(`/admin/events/${eventId}/results/${resultId}`, input),
   removeResult: (eventId: string, resultId: string) =>
     api.delete(`/admin/events/${eventId}/results/${resultId}`),
+
+  // Registrations
+  listRegistrations: (eventId: string) =>
+    api.get<EventRegistration[]>(`/admin/events/${eventId}/registrations`),
+  setRegistrationStatus: (eventId: string, regId: string, status: RegistrationStatus) =>
+    api.patch<EventRegistration>(`/admin/events/${eventId}/registrations/${regId}`, { status }),
 };

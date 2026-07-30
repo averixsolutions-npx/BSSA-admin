@@ -66,7 +66,7 @@ export default function AssociationsListPage() {
 
   const columns: ColumnDef<AssociationProfile>[] = [
     {
-      header: "BSSA ID",
+      header: "Member ID",
       id: "bssaId",
       cell: ({ row }) => (
         <span className="font-mono text-xs">{row.original.bssaId ?? "—"}</span>
@@ -168,7 +168,7 @@ export default function AssociationsListPage() {
         search={{
           value: search,
           onChange: (v) => { setSearch(v); setPage(1); },
-          placeholder: "Search by name…",
+          placeholder: "Search name or Member ID…",
         }}
         pagination={data ? { page: data.meta.page, limit: data.meta.limit, total: data.meta.total, totalPages: data.meta.totalPages, onPageChange: setPage } : undefined}
       />

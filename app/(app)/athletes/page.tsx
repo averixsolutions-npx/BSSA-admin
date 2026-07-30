@@ -67,7 +67,7 @@ export default function AthletesListPage() {
 
   const columns: ColumnDef<AthleteProfile>[] = [
     {
-      header: "BSSA ID",
+      header: "Member ID",
       id: "bssaId",
       cell: ({ row }) => (
         <span className="font-mono text-xs">{row.original.bssaId ?? "—"}</span>
@@ -97,7 +97,15 @@ export default function AthletesListPage() {
         </span>
       ),
     },
-    { header: "Discipline", accessorKey: "discipline", cell: ({ row }) => <span className="text-muted-foreground">{row.original.discipline ?? "—"}</span> },
+    {
+      header: "Discipline",
+      id: "disciplines",
+      cell: ({ row }) => (
+        <span className="text-muted-foreground">
+          {row.original.disciplines?.length ? row.original.disciplines.join(", ") : "—"}
+        </span>
+      ),
+    },
     { header: "State", accessorKey: "state", cell: ({ row }) => <span className="text-muted-foreground">{row.original.state ?? "—"}</span> },
     {
       header: "Status",
@@ -158,7 +166,7 @@ export default function AthletesListPage() {
         search={{
           value: search,
           onChange: (v) => { setSearch(v); setDebounced(v); setPage(1); },
-          placeholder: "Search by name…",
+          placeholder: "Search name, Member ID, or FIS ID…",
         }}
         pagination={data ? { page: data.meta.page, limit: data.meta.limit, total: data.meta.total, totalPages: data.meta.totalPages, onPageChange: setPage } : undefined}
       />

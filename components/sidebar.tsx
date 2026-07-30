@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { NAV_GROUPS } from "./nav-config";
 import { ScrollArea } from "./ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { ORG_NAME } from "@/lib/brand";
 import { useQueueCounts } from "./hooks/use-queue-counts";
 
 // Nav hrefs that show a pending-review count pill.
@@ -38,16 +39,19 @@ export function Sidebar() {
       )}
     >
       <div className="flex h-16 items-center border-b border-border/60 px-6">
-        <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
+        <Link href="/dashboard" className="flex items-center gap-2 font-semibold min-w-0">
           <Image
             src="/logo.jpeg"
-            alt="BSSA"
+            alt={ORG_NAME}
             width={32}
             height={32}
-            className="h-8 w-8 rounded-md object-cover"
+            className="h-8 w-8 rounded-md object-cover shrink-0"
             priority
           />
-          <span>BSSA Admin</span>
+          <span className="flex flex-col leading-tight min-w-0">
+            <span className="font-bold text-sm truncate" title={ORG_NAME}>{ORG_NAME}</span>
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Admin</span>
+          </span>
         </Link>
       </div>
       <ScrollArea className="flex-1 px-3 py-4">

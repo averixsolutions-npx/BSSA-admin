@@ -8,11 +8,14 @@ import { toast } from "sonner";
 import { athletesAdminService } from "@/lib/services/athletes-admin";
 import { athleteDocumentsService } from "@/lib/services/athlete-documents";
 import { athleteAchievementsService } from "@/lib/services/athlete-achievements";
+import { memberMediaService } from "@/lib/services/member-media";
+import { memberResultsService } from "@/lib/services/member-results";
 import {
   ALL_DOCUMENT_TYPES,
-  MANDATORY_DOCUMENT_TYPES,
   DOCUMENT_TYPE_LABELS,
+  requiredDocTypesFor,
   type AthleteAchievement,
+  type MemberPastResult,
   type VerificationStatus,
 } from "@/lib/types";
 import { ApiCallError } from "@/lib/api-client";
@@ -30,6 +33,7 @@ import { ProfileActionsBar } from "@/components/profile-actions-bar";
 import { ModerationDialog } from "@/components/moderation-dialog";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ImageLightbox, type LightboxImage } from "@/components/image-lightbox";
+import { MemberMediaGallery } from "@/components/member-media-gallery";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
@@ -48,6 +52,7 @@ export default function AthleteDetailPage() {
   };
 
   const [reviewingAch, setReviewingAch] = useState<{ item: AthleteAchievement; label: string } | null>(null);
+  const [reviewingResult, setReviewingResult] = useState<{ item: MemberPastResult; label: string } | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [moderating, setModerating] = useState<"SUSPENDED" | "BLACKLISTED" | null>(null);
   const [reactivating, setReactivating] = useState(false);
@@ -69,6 +74,25 @@ export default function AthleteDetailPage() {
     queryKey: ["athlete-achievements", id],
     queryFn: () => athleteAchievementsService.list(id),
     enabled: !!id,
+  });
+
+  const { data: media = [] } = useQuery({
+    queryKey: ["athlete-media", id],
+    queryFn: () => memberMediaService.listForAthlete(id),
+    enabled: !!id,
+  });
+
+  const { data: pastResults = [], isLoading: resultsLoading } = useQuery({
+    queryKey: ["athlete-results", id],
+    queryFn: () => memberResultsService.list(id),
+    enabled: !!id,
+  });
+
+  const verifyResultMutation = useMutation({
+    mutationFn: ({ resultId, status, reviewNote }: { resultId: string; status: VerificationStatus; reviewNote?: string }) =>
+      memberResultsService.verify(id, resultId, status, reviewNote),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["athlete-results", id] }); toast.success("Result updated"); },
+    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
   });
 
   const verifyDocMutation = useMutation({
@@ -146,12 +170,14 @@ export default function AthleteDetailPage() {
     );
   }
 
-  const approvedMandatoryCount = MANDATORY_DOCUMENT_TYPES.filter((t) =>
+  // Which documents are required depends on this athlete's Aadhaar layout.
+  const requiredTypes = requiredDocTypesFor(profile.aadhaarLayout);
+  const approvedMandatoryCount = requiredTypes.filter((t) =>
     documents.some((d) => d.type === t && d.status === "APPROVED")
   ).length;
-  const canApprove = approvedMandatoryCount === MANDATORY_DOCUMENT_TYPES.length;
+  const canApprove = approvedMandatoryCount === requiredTypes.length;
   const blockedReason = !canApprove
-    ? `Approve all mandatory documents first (${approvedMandatoryCount}/${MANDATORY_DOCUMENT_TYPES.length})`
+    ? `Approve all required documents first (${approvedMandatoryCount}/${requiredTypes.length})`
     : undefined;
 
   const diffRows =
@@ -164,7 +190,11 @@ export default function AthleteDetailPage() {
             after: profile.dob?.slice(0, 10) ?? null,
           },
           { label: "Gender", before: profile.approvedSnapshot.gender, after: profile.gender },
-          { label: "Discipline", before: profile.approvedSnapshot.discipline, after: profile.discipline },
+          {
+            label: "Disciplines",
+            before: profile.approvedSnapshot.disciplines?.join(", ") ?? null,
+            after: profile.disciplines?.join(", ") ?? null,
+          },
           { label: "State", before: profile.approvedSnapshot.state, after: profile.state },
           { label: "Address", before: profile.approvedSnapshot.address, after: profile.address },
         ]
@@ -184,7 +214,15 @@ export default function AthleteDetailPage() {
     url: a.viewUrl,
     label: `${a.title} — proof`,
   }));
-  const allImages: LightboxImage[] = [...lightboxImages, ...achievementImages];
+
+  // Past results with a proof upload — these follow the achievements in the lightbox.
+  const resultsWithProof = pastResults.filter((r): r is MemberPastResult & { viewUrl: string } => !!r.viewUrl);
+  const resultImages: LightboxImage[] = resultsWithProof.map((r) => ({
+    url: r.viewUrl,
+    label: `${r.eventName} — proof`,
+  }));
+
+  const allImages: LightboxImage[] = [...lightboxImages, ...achievementImages, ...resultImages];
 
   return (
     <div className="space-y-8">
@@ -207,17 +245,30 @@ export default function AthleteDetailPage() {
             <div className="flex flex-wrap items-center gap-2 mt-1">
               {profile.bssaId && (
                 <button
-                  onClick={() => copy(profile.bssaId!, "BSSA ID")}
+                  onClick={() => copy(profile.bssaId!, "Member ID")}
                   className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 font-mono text-xs hover:bg-muted/70"
                 >
                   {profile.bssaId} <Copy className="h-3 w-3 opacity-60" />
                 </button>
               )}
+              {profile.fisId && (
+                <button
+                  onClick={() => copy(profile.fisId!, "FIS ID")}
+                  className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 font-mono text-xs hover:bg-muted/70"
+                >
+                  FIS {profile.fisId} <Copy className="h-3 w-3 opacity-60" />
+                </button>
+              )}
               <AccountStatusBadge status={profile.account?.status} />
               <SubmissionStatusBadge status={profile.submissionStatus} />
               <Badge variant={profile.isPublished ? "success" : "secondary"}>{profile.isPublished ? "Published" : "Not published"}</Badge>
+              {profile.aadhaarLayout && (
+                <Badge variant="secondary">
+                  Aadhaar: {profile.aadhaarLayout === "FRONT_BACK" ? "Front + Back" : "Single page"}
+                </Badge>
+              )}
               <span className="text-sm text-muted-foreground">
-                {profile.discipline ?? "—"} · {profile.state ?? "—"}
+                {profile.disciplines?.length ? profile.disciplines.join(", ") : "—"} · {profile.state ?? "—"}
               </span>
               {profile.account?.email && (
                 <button
@@ -240,6 +291,19 @@ export default function AthleteDetailPage() {
           }
         />
       </div>
+
+      {/* Member-authored bio & social links (read-only for admins) */}
+      {(profile.bio || profile.instagramUrl || profile.youtubeUrl || profile.facebookUrl) && (
+        <section className="space-y-2 rounded-lg border p-4">
+          <h2 className="text-sm font-semibold">About</h2>
+          {profile.bio && <p className="whitespace-pre-line text-sm text-muted-foreground">{profile.bio}</p>}
+          <div className="flex flex-wrap gap-3 text-xs">
+            {profile.instagramUrl && <a href={profile.instagramUrl} target="_blank" rel="noreferrer" className="underline">Instagram</a>}
+            {profile.youtubeUrl && <a href={profile.youtubeUrl} target="_blank" rel="noreferrer" className="underline">YouTube</a>}
+            {profile.facebookUrl && <a href={profile.facebookUrl} target="_blank" rel="noreferrer" className="underline">Facebook</a>}
+          </div>
+        </section>
+      )}
 
       <ProfileActionsBar
         status={profile.account?.status ?? "ACTIVE"}
@@ -280,7 +344,7 @@ export default function AthleteDetailPage() {
 
       <DocumentsReviewGrid
         allTypes={ALL_DOCUMENT_TYPES}
-        mandatoryTypes={MANDATORY_DOCUMENT_TYPES}
+        mandatoryTypes={requiredTypes}
         labels={DOCUMENT_TYPE_LABELS}
         documents={documents}
         isLoading={docsLoading}
@@ -344,6 +408,93 @@ export default function AthleteDetailPage() {
           </div>
         )}
       </section>
+
+      {/* Self-declared past results */}
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold">Past results</h2>
+        {resultsLoading ? (
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        ) : pastResults.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 rounded-lg border py-10 text-center">
+            <FileX className="h-6 w-6 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">No past results submitted yet.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {pastResults.map((r) => {
+              const border =
+                r.status === "APPROVED" ? "border-emerald-500/50"
+                : r.status === "REJECTED" ? "border-red-500/50"
+                : "border-border";
+              const proofIndex = resultsWithProof.findIndex((p) => p.id === r.id);
+              const meta = [
+                r.rank != null ? `Rank ${r.rank}` : null,
+                r.timing,
+                r.category,
+                r.discipline,
+                r.location,
+              ].filter(Boolean);
+              return (
+                <div key={r.id} className={`overflow-hidden rounded-xl border-2 ${border} bg-card`}>
+                  {r.viewUrl && proofIndex >= 0 && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setLightboxIndex(lightboxImages.length + achievementImages.length + proofIndex)
+                      }
+                      className="group relative block aspect-[4/3] w-full overflow-hidden bg-muted"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={r.viewUrl} alt={`${r.eventName} — proof`}
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                      <span className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/20" />
+                    </button>
+                  )}
+                  <div className="border-t px-3 py-2">
+                    <p className="text-sm font-medium">
+                      {r.eventName} <span className="font-normal text-muted-foreground">— {r.year}</span>
+                    </p>
+                    {meta.length > 0 && (
+                      <p className="mt-0.5 text-xs text-muted-foreground">{meta.join(" · ")}</p>
+                    )}
+                    {r.description && <p className="mt-0.5 text-xs text-muted-foreground">{r.description}</p>}
+                    {!r.viewUrl && <p className="mt-0.5 text-[11px] text-amber-600">No proof uploaded</p>}
+                    <div className="mt-1"><DocumentStatusBadge status={r.status} /></div>
+                    {r.reviewNote && r.status === "REJECTED" && (
+                      <p className="mt-1 text-[11px] text-red-600">Reason: {r.reviewNote}</p>
+                    )}
+                  </div>
+                  {r.status !== "APPROVED" && (
+                    <div className="flex gap-2 px-3 pb-3">
+                      <Button size="sm" className="h-7 flex-1 text-[11px]" disabled={verifyResultMutation.isPending}
+                        onClick={() => verifyResultMutation.mutate({ resultId: r.id, status: "APPROVED" })}>
+                        Approve
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-7 flex-1 text-[11px]" disabled={verifyResultMutation.isPending}
+                        onClick={() => setReviewingResult({ item: r, label: `${r.eventName} — ${r.year}` })}>
+                        Reject
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <MemberMediaGallery items={media} />
+
+      <DocumentReviewDialog
+        open={!!reviewingResult}
+        onOpenChange={(o) => !o && setReviewingResult(null)}
+        subjectLabel={reviewingResult?.label ?? ""}
+        rejectOnly
+        onSubmit={async (status, reviewNote) => {
+          if (!reviewingResult || status !== "REJECTED" || !reviewNote) return;
+          await verifyResultMutation.mutateAsync({ resultId: reviewingResult.item.id, status: "REJECTED", reviewNote });
+        }}
+      />
 
       <DocumentReviewDialog
         open={!!reviewingAch}

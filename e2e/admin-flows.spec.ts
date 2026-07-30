@@ -27,7 +27,8 @@ test.describe.serial("Admin Panel E2E", () => {
 
   test("1.1 — Login page loads", async ({ page }) => {
     await page.goto("/login");
-    await expect(page.locator("text=BSSA Admin")).toBeVisible();
+    // Title is "<org name> — Admin"; org name comes from NEXT_PUBLIC_ORG_NAME.
+    await expect(page.getByText(/—\s*Admin/)).toBeVisible();
     await expect(page.locator('input[id="username"]')).toBeVisible();
     await expect(page.locator('input[id="password"]')).toBeVisible();
   });
