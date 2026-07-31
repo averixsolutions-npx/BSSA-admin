@@ -28,6 +28,15 @@ export default function EditEventPage() {
     enabled: !!id,
   });
 
+  // Once an event has registrations, its field keys are locked (answers are stored by key).
+  const { data: regs = [] } = useQuery({
+    queryKey: ["events", "registrations", id],
+    queryFn: () => eventsService.listRegistrations(id),
+    enabled: !!id && !!event?.registrationEnabled,
+  });
+  const lockedFieldKeys =
+    regs.length > 0 ? (event?.registrationFields ?? []).map((f) => f.key) : [];
+
   const updateM = useMutation({
     mutationFn: (v: EventFormValues) =>
       eventsService.update(id, {
@@ -68,7 +77,14 @@ export default function EditEventPage() {
         </>}
       />
 
-      <EventForm initialValues={event} onSubmit={async (v) => { await updateM.mutateAsync(v); }} onCancel={() => router.push("/events")} submitting={updateM.isPending} submitLabel="Save changes" />
+      <EventForm
+        initialValues={event}
+        onSubmit={async (v) => { await updateM.mutateAsync(v); }}
+        onCancel={() => router.push("/events")}
+        submitting={updateM.isPending}
+        submitLabel="Save changes"
+        lockedFieldKeys={lockedFieldKeys}
+      />
 
       <Separator className="my-8" />
 
@@ -79,7 +95,11 @@ export default function EditEventPage() {
           <Separator className="my-8" />
           <section className="space-y-3">
             <h3 className="text-lg font-semibold">Registrations</h3>
-            <EventRegistrationsTable eventId={id} fields={event.registrationFields ?? []} />
+            <EventRegistrationsTable
+              eventId={id}
+              fields={event.registrationFields ?? []}
+              standardFields={event.standardFields ?? undefined}
+            />
           </section>
         </>
       )}

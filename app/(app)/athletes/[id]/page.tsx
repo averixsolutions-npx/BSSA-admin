@@ -11,9 +11,9 @@ import { athleteAchievementsService } from "@/lib/services/athlete-achievements"
 import { memberMediaService } from "@/lib/services/member-media";
 import { memberResultsService } from "@/lib/services/member-results";
 import {
-  ALL_DOCUMENT_TYPES,
   DOCUMENT_TYPE_LABELS,
   requiredDocTypesFor,
+  visibleDocTypesFor,
   type AthleteAchievement,
   type MemberPastResult,
   type VerificationStatus,
@@ -172,6 +172,14 @@ export default function AthleteDetailPage() {
 
   // Which documents are required depends on this athlete's Aadhaar layout.
   const requiredTypes = requiredDocTypesFor(profile.aadhaarLayout);
+  // Rows to render: required-first, then optional — with the non-chosen Aadhaar
+  // variant dropped. Append any already-uploaded type not in that set so no
+  // uploaded document is ever hidden.
+  const visibleTypes = visibleDocTypesFor(profile.aadhaarLayout);
+  const extraUploaded = documents
+    .map((d) => d.type)
+    .filter((t, i, arr) => arr.indexOf(t) === i && !visibleTypes.includes(t));
+  const docTypesToShow = [...visibleTypes, ...extraUploaded];
   const approvedMandatoryCount = requiredTypes.filter((t) =>
     documents.some((d) => d.type === t && d.status === "APPROVED")
   ).length;
@@ -201,7 +209,7 @@ export default function AthleteDetailPage() {
       : [];
 
   // Uploaded docs, in display order — the lightbox navigates across these.
-  const uploadedDocs = ALL_DOCUMENT_TYPES
+  const uploadedDocs = docTypesToShow
     .map((type) => documents.find((d) => d.type === type))
     .filter((d): d is (typeof documents)[number] => !!d);
 
@@ -343,7 +351,7 @@ export default function AthleteDetailPage() {
       )}
 
       <DocumentsReviewGrid
-        allTypes={ALL_DOCUMENT_TYPES}
+        allTypes={docTypesToShow}
         mandatoryTypes={requiredTypes}
         labels={DOCUMENT_TYPE_LABELS}
         documents={documents}

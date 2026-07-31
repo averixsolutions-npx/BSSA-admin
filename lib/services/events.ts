@@ -7,6 +7,7 @@ import type {
   RegistrantType,
   RegistrationField,
   RegistrationStatus,
+  StandardFieldsConfig,
 } from "@/lib/types";
 
 export interface EventListParams {
@@ -30,6 +31,7 @@ export interface EventCreateInput {
   registrationClosesAt?: string;
   allowedRegistrants?: RegistrantType[];
   registrationFields?: RegistrationField[];
+  standardFields?: StandardFieldsConfig;
 }
 
 export type EventUpdateInput = Partial<EventCreateInput>;

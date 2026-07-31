@@ -95,6 +95,7 @@ export interface Event {
   registrationClosesAt?: string | null;
   allowedRegistrants?: RegistrantType[];
   registrationFields?: RegistrationField[];
+  standardFields?: StandardFieldsConfig | null;
 }
 
 export interface EventResult {
@@ -321,6 +322,20 @@ export function requiredDocTypesFor(layout: AadhaarLayout | null | undefined): A
   return base;
 }
 
+// Optional documents, in the order they should appear after the required set.
+const OPTIONAL_ATHLETE_DOC_ORDER: AthleteDocumentType[] = [
+  "PAN", "TENTH_MARKSHEET", "PASSPORT", "HEALTH_INSURANCE", "FITNESS_CERTIFICATE",
+];
+
+// The document rows to render for an athlete, in review order: required first
+// (Aadhaar variant per layout → Birth → Anti-Doping) then optional. The Aadhaar
+// variant that doesn't match the chosen layout is omitted entirely.
+export function visibleDocTypesFor(
+  layout: AadhaarLayout | null | undefined
+): AthleteDocumentType[] {
+  return [...requiredDocTypesFor(layout), ...OPTIONAL_ATHLETE_DOC_ORDER];
+}
+
 export type VerificationStatus = "PENDING" | "APPROVED" | "REJECTED";
 
 export interface AthleteDocument {
@@ -446,7 +461,13 @@ export interface RegistrationField {
   type: RegistrationFieldType;
   required: boolean;
   options?: string[];
+  helpText?: string;
 }
+
+// Profile-sourced details the registrant only reviews & confirms.
+export type StandardFieldKey = "fullName" | "email" | "phone" | "state" | "dob";
+export interface StandardFieldConfig { show: boolean; required: boolean; }
+export type StandardFieldsConfig = Partial<Record<StandardFieldKey, StandardFieldConfig>>;
 
 export interface EventRegistration {
   id: string;
@@ -455,6 +476,8 @@ export interface EventRegistration {
   athleteProfileId: string | null;
   associationProfileId: string | null;
   answers: Record<string, string | number | boolean>;
+  // Profile values captured at registration time (fullName, email, phone, …).
+  standardSnapshot?: Record<string, string | number | string[]> | null;
   status: RegistrationStatus;
   createdAt: string;
   account?: { email: string };
