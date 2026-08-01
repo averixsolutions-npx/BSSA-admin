@@ -46,8 +46,7 @@ export function StandardFieldsEditor({
         })}
       </div>
       <p className="text-[11px] text-muted-foreground">
-        Athletes also auto-include Member ID, FIS ID and disciplines (read-only). Associations include
-        their name and Member ID.
+        BSSA ID is shown read-only — it&apos;s pulled from the member&apos;s profile and can&apos;t be edited.
       </p>
     </div>
   );

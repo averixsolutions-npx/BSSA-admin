@@ -1,28 +1,27 @@
 import type { StandardFieldKey, StandardFieldsConfig, RegistrationFieldType } from "@/lib/types";
 
-export const STANDARD_FIELD_ORDER: StandardFieldKey[] = ["fullName", "email", "phone", "state", "dob"];
+export const STANDARD_FIELD_ORDER: StandardFieldKey[] = ["fullName", "email", "phone", "bssaId"];
 
 export const STANDARD_FIELD_LABELS: Record<StandardFieldKey, string> = {
   fullName: "Full name",
   email: "Email",
-  phone: "Phone",
-  state: "State",
-  dob: "Date of birth",
+  phone: "Contact number",
+  bssaId: "BSSA ID",
 };
 
-// Mirror of the backend DEFAULT_STANDARD_FIELDS — applied to events that have no config yet.
+// Mirror of the backend DEFAULT_STANDARD_FIELDS — the "default form".
 export const DEFAULT_STANDARD_FIELDS: StandardFieldsConfig = {
   fullName: { show: true, required: true },
   email: { show: true, required: true },
-  phone: { show: true, required: false },
-  state: { show: true, required: false },
-  dob: { show: false, required: false },
+  phone: { show: true, required: true },
+  bssaId: { show: true, required: false }, // read-only, prefilled
 };
 
+// Shown but never user-editable — identity values from the profile.
+export const READ_ONLY_STANDARD_FIELDS: StandardFieldKey[] = ["bssaId"];
+
 // Keys a custom field may NOT reuse (would shadow a standard/auto value). Mirrors the backend.
-export const RESERVED_KEYS: readonly string[] = [
-  ...STANDARD_FIELD_ORDER, "bssaId", "fisId", "disciplines",
-];
+export const RESERVED_KEYS: readonly string[] = [...STANDARD_FIELD_ORDER];
 
 // Friendly names shown in the type dropdown.
 export const FIELD_TYPE_LABELS: Record<RegistrationFieldType, string> = {

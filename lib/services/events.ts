@@ -8,6 +8,7 @@ import type {
   RegistrationField,
   RegistrationStatus,
   StandardFieldsConfig,
+  MemberSearchResult,
 } from "@/lib/types";
 
 export interface EventListParams {
@@ -79,4 +80,8 @@ export const eventsService = {
     api.get<EventRegistration[]>(`/admin/events/${eventId}/registrations`),
   setRegistrationStatus: (eventId: string, regId: string, status: RegistrationStatus) =>
     api.patch<EventRegistration>(`/admin/events/${eventId}/registrations/${regId}`, { status }),
+
+  // Members for the results-tagging picker — search by name or BSSA ID.
+  searchMembers: (q: string, type: RegistrantType | "ALL" = "ALL") =>
+    api.get<MemberSearchResult[]>("/admin/members/search", { q, limit: 10, type }),
 };

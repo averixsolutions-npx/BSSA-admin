@@ -3,7 +3,7 @@ import * as React from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  CalendarDays, Clock, Eye, FileText, HelpCircle, Info, ListChecks, Loader2, Send, UserPlus, Users,
+  CalendarDays, Clock, FileText, Info, ListChecks, Loader2, Send, UserPlus, Users,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -21,10 +21,12 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DateTimePicker } from "@/components/ui/date-picker";
-import { StandardFieldsEditor } from "@/components/registration/standard-fields-editor";
-import { CustomFieldsEditor } from "@/components/registration/custom-fields-editor";
-import { RegistrationPreview } from "@/components/registration/registration-preview";
+import { DatePicker } from "@/components/ui/date-picker";
+import { DEFAULT_STANDARD_FIELDS } from "@/lib/registration";
+import {
+  RegistrationFormSummary,
+  RegistrationFormDialog,
+} from "@/components/registration/registration-form-editor";
 import { cn } from "@/lib/utils";
 
 export { toRegistrationInput, type EventFormValues } from "./event-schema";
@@ -80,7 +82,12 @@ export function EventForm({
       registrationOpensAt: initialValues?.registrationOpensAt ?? "",
       registrationClosesAt: initialValues?.registrationClosesAt ?? "",
       allowedRegistrants: initialValues?.allowedRegistrants ?? [],
-      standardFields: initialValues?.standardFields ?? {},
+      // Seed the concrete default form. An empty object would mean "no fields",
+      // so a fresh event starts from the real default (name/email/contact/BSSA ID).
+      standardFields:
+        initialValues?.standardFields && Object.keys(initialValues.standardFields).length > 0
+          ? initialValues.standardFields
+          : DEFAULT_STANDARD_FIELDS,
       registrationFields: (initialValues?.registrationFields ?? []).map((f) => ({
         key: f.key,
         label: f.label,
@@ -94,6 +101,7 @@ export function EventForm({
   const { register, control, watch, setValue, handleSubmit, formState: { errors } } = form;
 
   const [tab, setTab] = React.useState<TabKey>("details");
+  const [formEditorOpen, setFormEditorOpen] = React.useState(false);
 
   const registrationEnabled = watch("registrationEnabled");
   const standardFields = watch("standardFields");
@@ -196,21 +204,21 @@ export function EventForm({
             tone="green"
           >
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <FormField label="Start date & time" required error={errors.startDate}>
+              <FormField label="Start date" required error={errors.startDate}>
                 <Controller
                   name="startDate"
                   control={control}
                   render={({ field }) => (
-                    <DateTimePicker value={field.value} onChange={(v) => field.onChange(v ?? "")} />
+                    <DatePicker value={field.value} onChange={(v) => field.onChange(v ?? "")} />
                   )}
                 />
               </FormField>
-              <FormField label="End date & time" required error={errors.endDate}>
+              <FormField label="End date" required error={errors.endDate}>
                 <Controller
                   name="endDate"
                   control={control}
                   render={({ field }) => (
-                    <DateTimePicker value={field.value} onChange={(v) => field.onChange(v ?? "")} />
+                    <DatePicker value={field.value} onChange={(v) => field.onChange(v ?? "")} />
                   )}
                 />
               </FormField>
@@ -298,7 +306,7 @@ export function EventForm({
                       name="registrationOpensAt"
                       control={control}
                       render={({ field }) => (
-                        <DateTimePicker
+                        <DatePicker
                           value={field.value}
                           onChange={(v) => field.onChange(v ?? "")}
                           placeholder="No limit"
@@ -311,7 +319,7 @@ export function EventForm({
                       name="registrationClosesAt"
                       control={control}
                       render={({ field }) => (
-                        <DateTimePicker
+                        <DatePicker
                           value={field.value}
                           onChange={(v) => field.onChange(v ?? "")}
                           placeholder="No limit"
@@ -364,39 +372,31 @@ export function EventForm({
           {registrationEnabled && (
             <>
               <SectionCard
-                title="Standard details"
-                description="Auto-filled from each registrant's profile — they only review and confirm. Tick what to ask for and what's required."
+                title="Registration form"
+                description="What every registrant sees. Fixed by default — open it to change the fields."
                 icon={ListChecks}
                 tone="blue"
               >
-                <StandardFieldsEditor
-                  value={standardFields}
-                  onChange={(v) => setValue("standardFields", v, { shouldDirty: true })}
-                />
-              </SectionCard>
-
-              <SectionCard
-                title="Custom questions"
-                description="Event-specific extras. Drag to reorder; keys are generated from the label."
-                icon={HelpCircle}
-                tone="amber"
-              >
-                <CustomFieldsEditor control={control} lockedKeys={lockedFieldKeys} />
-              </SectionCard>
-
-              <SectionCard
-                title="Preview"
-                description="What the registrant sees."
-                icon={Eye}
-                tone="slate"
-                collapsible
-                defaultOpen={false}
-              >
-                <RegistrationPreview
+                <RegistrationFormSummary
                   standardFields={standardFields}
                   fields={registrationFields ?? []}
+                  onEdit={() => setFormEditorOpen(true)}
                 />
               </SectionCard>
+
+              <RegistrationFormDialog
+                open={formEditorOpen}
+                onClose={() => setFormEditorOpen(false)}
+                control={control}
+                standardFields={standardFields}
+                onStandardChange={(v) => setValue("standardFields", v, { shouldDirty: true })}
+                registrationFields={registrationFields ?? []}
+                lockedFieldKeys={lockedFieldKeys}
+                onReset={() => {
+                  setValue("standardFields", DEFAULT_STANDARD_FIELDS, { shouldDirty: true });
+                  setValue("registrationFields", [], { shouldDirty: true });
+                }}
+              />
             </>
           )}
         </TabsContent>

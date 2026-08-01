@@ -1,6 +1,6 @@
 "use client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Users } from "lucide-react";
+import { Loader2, Users, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 
 import { eventsService } from "@/lib/services/events";
@@ -18,6 +18,16 @@ import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 
 const STATUSES: RegistrationStatus[] = ["PENDING", "CONFIRMED", "WAITLISTED", "CANCELLED"];
+
+// Public web app base — used to link an athlete row to their profile.
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+
+// A row links out only when it's a published athlete with a slug.
+function profileHref(r: EventRegistration): string | null {
+  const p = r.athleteProfile;
+  if (p?.slug && p.isPublished && SITE_URL) return `${SITE_URL}/athletes/${p.slug}`;
+  return null;
+}
 
 export function EventRegistrationsTable({
   eventId,
@@ -46,9 +56,10 @@ export function EventRegistrationsTable({
       }),
   });
 
-  // Standard columns the event actually asks for. `fullName` is skipped — the
-  // Registrant column already shows it.
-  const stdCols = STANDARD_FIELD_ORDER.filter((k) => k !== "fullName" && standardFields[k]?.show);
+  // fullName is the Registrant column; bssaId is the Member ID column — skip both.
+  const stdCols = STANDARD_FIELD_ORDER.filter(
+    (k) => k !== "fullName" && k !== "bssaId" && standardFields[k]?.show
+  );
 
   const name = (r: EventRegistration) =>
     r.athleteProfile?.fullName ?? r.associationProfile?.name ?? r.account?.email ?? "—";
@@ -104,7 +115,40 @@ export function EventRegistrationsTable({
             <TableBody>
               {regs.map((r) => (
                 <TableRow key={r.id}>
-                  <TableCell className="font-medium">{name(r)}</TableCell>
+                  <TableCell className="font-medium">
+                    {(() => {
+                      const href = profileHref(r);
+                      if (href) {
+                        return (
+                          <a
+                            href={href}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="group inline-flex items-center gap-1.5 text-foreground transition-colors hover:text-primary"
+                            title="Open public profile in a new tab"
+                          >
+                            {name(r)}
+                            <ExternalLink className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100" />
+                          </a>
+                        );
+                      }
+                      // No dead end — say why there's no link.
+                      const reason =
+                        r.registrantType === "ASSOCIATION"
+                          ? "No public profile"
+                          : r.athleteProfile && !r.athleteProfile.isPublished
+                          ? "Profile not public yet"
+                          : null;
+                      return (
+                        <span className="inline-flex items-center gap-2">
+                          {name(r)}
+                          {reason && (
+                            <span className="text-[11px] font-normal text-muted-foreground">({reason})</span>
+                          )}
+                        </span>
+                      );
+                    })()}
+                  </TableCell>
                   <TableCell className="font-mono text-xs">{memberId(r)}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{r.registrantType}</TableCell>
                   {stdCols.map((k) => (

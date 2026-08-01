@@ -1,14 +1,14 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useForm, type UseFormSetValue } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Plus, Pencil, Trash2, Loader2, Save, X, Link2, Trophy } from "lucide-react";
 import { toast } from "sonner";
 
 import { eventsService } from "@/lib/services/events";
-import type { EventResult, EventRegistration } from "@/lib/types";
+import type { EventResult } from "@/lib/types";
 import { ApiCallError } from "@/lib/api-client";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
+import { MemberTagCombobox } from "@/components/registration/member-tag-combobox";
 
 const resultSchema = z.object({
   rank: z.coerce.number().int().positive("Rank must be positive"),
@@ -49,9 +50,6 @@ function toResultInput(input: ResultFormValues) {
   };
 }
 
-const registrantName = (r: EventRegistration) =>
-  r.athleteProfile?.fullName ?? r.associationProfile?.name ?? r.account?.email ?? "Registrant";
-
 interface ResultsEditorProps {
   eventId: string;
 }
@@ -68,15 +66,6 @@ export function ResultsEditor({ eventId }: ResultsEditorProps) {
     queryKey,
     queryFn: () => eventsService.listResults(eventId),
   });
-
-  // Confirmed registrants can be tagged onto a result. Registration may be off
-  // for this event — in that case we just don't offer the picker.
-  const { data: registrations } = useQuery({
-    queryKey: ["events", "registrations", eventId],
-    queryFn: () => eventsService.listRegistrations(eventId),
-    retry: false,
-  });
-  const registrants = (registrations ?? []).filter((r) => r.status === "CONFIRMED");
 
   const createMutation = useMutation({
     mutationFn: (input: ResultFormValues) => eventsService.createResult(eventId, toResultInput(input)),
@@ -171,7 +160,6 @@ export function ResultsEditor({ eventId }: ResultsEditorProps) {
                   <InlineEditRow
                     key={r.id}
                     result={r}
-                    registrants={registrants}
                     onSave={(vals) => updateMutation.mutate({ id: r.id, input: vals })}
                     onCancel={() => setEditingId(null)}
                     saving={updateMutation.isPending}
@@ -214,7 +202,6 @@ export function ResultsEditor({ eventId }: ResultsEditorProps) {
 
       {showAddDialog && (
         <AddResultDialog
-          registrants={registrants}
           onSubmit={(vals) => createMutation.mutate(vals)}
           onClose={() => setShowAddDialog(false)}
           saving={createMutation.isPending}
@@ -236,64 +223,13 @@ export function ResultsEditor({ eventId }: ResultsEditorProps) {
   );
 }
 
-// ── Registrant picker ──
-// Tagging attaches the result to a real member profile. Picking a registrant
-// also fills in the display name, which stays editable for external competitors.
-
-function RegistrantPicker({
-  registrants,
-  value,
-  setValue,
-  className,
-}: {
-  registrants: EventRegistration[];
-  value: { athleteProfileId?: string; associationProfileId?: string };
-  setValue: UseFormSetValue<ResultFormValues>;
-  className?: string;
-}) {
-  if (!registrants.length) return null;
-
-  const selected =
-    registrants.find(
-      (r) =>
-        (value.athleteProfileId && r.athleteProfileId === value.athleteProfileId) ||
-        (value.associationProfileId && r.associationProfileId === value.associationProfileId)
-    )?.id ?? "";
-
-  return (
-    <select
-      className={className ?? "h-8 rounded-md border border-input bg-background px-2 text-xs"}
-      value={selected}
-      title="Tag this result to a confirmed registrant"
-      onChange={(e) => {
-        const reg = registrants.find((r) => r.id === e.target.value);
-        if (!reg) {
-          setValue("athleteProfileId", "");
-          setValue("associationProfileId", "");
-          return;
-        }
-        setValue("athleteProfileId", reg.athleteProfileId ?? "");
-        setValue("associationProfileId", reg.associationProfileId ?? "");
-        setValue("athleteOrTeam", registrantName(reg), { shouldValidate: true });
-      }}
-    >
-      <option value="">Not tagged</option>
-      {registrants.map((r) => (
-        <option key={r.id} value={r.id}>{registrantName(r)}</option>
-      ))}
-    </select>
-  );
-}
-
 // ── Add result dialog (P3 — creation never sits open on the page) ──
 
 function AddResultDialog({
-  registrants,
   onSubmit,
   onClose,
   saving,
 }: {
-  registrants: EventRegistration[];
   onSubmit: (v: ResultFormValues) => void;
   onClose: () => void;
   saving: boolean;
@@ -332,17 +268,26 @@ function AddResultDialog({
             <Input placeholder="Remarks" {...register("remarks")} />
           </div>
 
-          {registrants.length > 0 && (
-            <RegistrantPicker
-              registrants={registrants}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">
+              Tag a member <span className="font-normal">(optional)</span>
+            </label>
+            <MemberTagCombobox
               value={{
-                athleteProfileId: watch("athleteProfileId"),
-                associationProfileId: watch("associationProfileId"),
+                athleteProfileId: watch("athleteProfileId") || undefined,
+                associationProfileId: watch("associationProfileId") || undefined,
+                label: watch("athleteOrTeam") || undefined,
               }}
-              setValue={setValue}
-              className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm"
+              onChange={(next, member) => {
+                setValue("athleteProfileId", next?.athleteProfileId ?? "");
+                setValue("associationProfileId", next?.associationProfileId ?? "");
+                if (member) setValue("athleteOrTeam", member.name, { shouldValidate: true });
+              }}
             />
-          )}
+            <p className="text-[11px] text-muted-foreground">
+              Links this placing to the member&apos;s public profile.
+            </p>
+          </div>
 
           {(errors.rank || errors.athleteOrTeam || errors.resultValue) && (
             <p className="text-xs text-destructive">
@@ -366,13 +311,11 @@ function AddResultDialog({
 
 function InlineEditRow({
   result,
-  registrants,
   onSave,
   onCancel,
   saving,
 }: {
   result: EventResult;
-  registrants: EventRegistration[];
   onSave: (v: ResultFormValues) => void;
   onCancel: () => void;
   saving: boolean;
@@ -397,11 +340,18 @@ function InlineEditRow({
       <TableCell><Input type="number" className="w-16 h-8 text-xs" {...register("rank")} /></TableCell>
       <TableCell className="space-y-1">
         <Input className="h-8 text-xs" {...register("athleteOrTeam")} />
-        <RegistrantPicker
-          registrants={registrants}
-          value={{ athleteProfileId: watch("athleteProfileId"), associationProfileId: watch("associationProfileId") }}
-          setValue={setValue}
-          className="h-7 w-full rounded-md border border-input bg-background px-2 text-[11px]"
+        <MemberTagCombobox
+          size="sm"
+          value={{
+            athleteProfileId: watch("athleteProfileId") || undefined,
+            associationProfileId: watch("associationProfileId") || undefined,
+            label: watch("athleteOrTeam") || undefined,
+          }}
+          onChange={(next, member) => {
+            setValue("athleteProfileId", next?.athleteProfileId ?? "");
+            setValue("associationProfileId", next?.associationProfileId ?? "");
+            if (member) setValue("athleteOrTeam", member.name, { shouldValidate: true });
+          }}
         />
       </TableCell>
       <TableCell><Input className="h-8 text-xs" {...register("state")} /></TableCell>

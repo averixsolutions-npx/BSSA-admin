@@ -465,7 +465,7 @@ export interface RegistrationField {
 }
 
 // Profile-sourced details the registrant only reviews & confirms.
-export type StandardFieldKey = "fullName" | "email" | "phone" | "state" | "dob";
+export type StandardFieldKey = "fullName" | "email" | "phone" | "bssaId";
 export interface StandardFieldConfig { show: boolean; required: boolean; }
 export type StandardFieldsConfig = Partial<Record<StandardFieldKey, StandardFieldConfig>>;
 
@@ -481,8 +481,25 @@ export interface EventRegistration {
   status: RegistrationStatus;
   createdAt: string;
   account?: { email: string };
-  athleteProfile?: { id: string; fullName: string | null; bssaId: string | null };
+  athleteProfile?: {
+    id: string;
+    fullName: string | null;
+    bssaId: string | null;
+    slug: string | null;        // public web profile slug (athletes only)
+    isPublished: boolean;       // link is live only when published
+  };
   associationProfile?: { id: string; name: string | null; bssaId: string | null };
+}
+
+// Result of GET /admin/members/search — used by the results-tagging picker.
+export interface MemberSearchResult {
+  type: RegistrantType;         // "ATHLETE" | "ASSOCIATION"
+  id: string;                   // profile id → athleteProfileId / associationProfileId
+  name: string;
+  bssaId: string | null;
+  state: string | null;
+  slug: string | null;          // athletes only; null for associations
+  isPublished: boolean;
 }
 
 export interface Enquiry {
