@@ -10,6 +10,7 @@ import { ApiCallError } from "@/lib/api-client";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { LoadError } from "@/components/load-error";
 import { Button } from "@/components/ui/button";
 import { ProgramForm, type ProgramFormValues } from "../program-form";
 
@@ -32,19 +33,28 @@ export default function EditProgramPage() {
         bannerUrl: v.bannerUrl ?? undefined,
         body: v.body || undefined,
       }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["programs"] }); toast.success("Saved"); },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["programs"] }); toast.success("Program saved"); },
+    onError: (e) => toast.error("Couldn't save the program", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
-  const publishM = useMutation({ mutationFn: () => programsService.publish(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ["programs"] }); toast.success("Published"); } });
-  const unpublishM = useMutation({ mutationFn: () => programsService.unpublish(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ["programs"] }); toast.success("Unpublished"); } });
-  const deleteM = useMutation({ mutationFn: () => programsService.remove(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ["programs"] }); toast.success("Deleted"); router.push("/programs"); } });
+  const publishM = useMutation({
+    mutationFn: () => programsService.publish(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["programs"] }); toast.success("Program published"); },
+    onError: (e) => toast.error("Couldn't publish", { description: e instanceof ApiCallError ? e.message : undefined }),
+  });
+  const unpublishM = useMutation({
+    mutationFn: () => programsService.unpublish(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["programs"] }); toast.success("Program unpublished"); },
+    onError: (e) => toast.error("Couldn't unpublish", { description: e instanceof ApiCallError ? e.message : undefined }),
+  });
+  const deleteM = useMutation({
+    mutationFn: () => programsService.remove(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["programs"] }); toast.success("Program deleted"); router.push("/programs"); },
+    onError: (e) => toast.error("Couldn't delete the program", { description: e instanceof ApiCallError ? e.message : undefined }),
+  });
 
   if (isLoading) return <div className="flex h-64 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
   if (isError || !item) return (
-    <div className="space-y-4">
-      <p className="text-destructive">Couldn't load this program.</p>
-      <Button variant="outline" onClick={() => router.push("/programs")}>Back</Button>
-    </div>
+    <LoadError title="Couldn't load this program" backLabel="Back to programs" onBack={() => router.push("/programs")} />
   );
 
   const pub = item.status === "PUBLISHED";

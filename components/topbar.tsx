@@ -3,6 +3,7 @@ import { useRouter } from "next/navigation";
 import { LogOut, ExternalLink } from "lucide-react";
 import { useAuthStore } from "@/lib/auth-store";
 import { MobileNav } from "./mobile-nav";
+import { ThemeToggle } from "./theme-toggle";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Button } from "./ui/button";
 import {
@@ -48,9 +49,10 @@ export function Topbar() {
             </a>
           </Button>
         )}
+        <ThemeToggle />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="rounded-full">
+            <Button variant="ghost" size="icon" className="rounded-full" aria-label="Account menu">
               <Avatar>
                 <AvatarFallback>{initials}</AvatarFallback>
               </Avatar>

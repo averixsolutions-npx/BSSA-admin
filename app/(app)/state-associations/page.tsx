@@ -12,6 +12,7 @@ import type { StateAssociation } from "@/lib/types";
 import { ApiCallError } from "@/lib/api-client";
 import { PageHeader } from "@/components/page-header";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { ListShell } from "@/components/list-shell";
 import { ReorderableList } from "@/components/reorderable-list";
 import { FormField } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
@@ -42,35 +43,44 @@ export default function StateAssociationsListPage() {
   const reorderM = useMutation({
     mutationFn: (order: { id: string; sortOrder: number }[]) => stateAssociationsService.reorder(order),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["state-associations"] }); },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Could not reorder"),
+    onError: (e) => toast.error("Couldn't save the new order", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
   const createM = useMutation({
     mutationFn: (v: AssocFormValues) => stateAssociationsService.create({ name: v.name, state: v.state, contact: v.contact || undefined, email: v.email || undefined, phone: v.phone || undefined }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["state-associations"] }); toast.success("Association added"); setCreating(false); },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+    onError: (e) => toast.error("Couldn't add the association", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
   const updateM = useMutation({
     mutationFn: ({ id, v }: { id: string; v: AssocFormValues }) => stateAssociationsService.update(id, { name: v.name, state: v.state, contact: v.contact || undefined, email: v.email || undefined, phone: v.phone || undefined }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["state-associations"] }); toast.success("Saved"); setEditing(null); },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["state-associations"] }); toast.success("Association saved"); setEditing(null); },
+    onError: (e) => toast.error("Couldn't save the association", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
   const deleteM = useMutation({
     mutationFn: (id: string) => stateAssociationsService.remove(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["state-associations"] }); toast.success("Deleted"); setPendingDelete(null); },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["state-associations"] }); toast.success("Association deleted"); setPendingDelete(null); },
+    onError: (e) => toast.error("Couldn't delete the association", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
 
   return (
     <div className="space-y-6">
       <PageHeader title="State associations" description="Affiliated state/regional units. Drag to reorder." action={<Button onClick={() => setCreating(true)}><Plus className="h-4 w-4" />New association</Button>} />
 
-      {isLoading ? (
-        <div className="flex h-40 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-      ) : isError ? (
-        <p className="text-destructive">Couldn't load associations.</p>
-      ) : items.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-8 text-center">No associations yet.</p>
-      ) : (
+      <ListShell
+        isLoading={isLoading}
+        isError={isError}
+        errorTitle="Couldn't load state associations"
+        isEmpty={items.length === 0}
+        empty={{
+          icon: MapPin,
+          title: "No state associations yet",
+          description: "Affiliated state and regional units listed on the public site.",
+          action: (
+            <Button size="sm" onClick={() => setCreating(true)}>
+              <Plus className="h-4 w-4" />Add the first association
+            </Button>
+          ),
+        }}
+      >
         <ReorderableList
           items={items}
           onReorder={(order) => reorderM.mutate(order)}
@@ -91,7 +101,7 @@ export default function StateAssociationsListPage() {
             </div>
           )}
         />
-      )}
+      </ListShell>
 
       {creating && (
         <AssocDialog title="New association" onSubmit={(v) => createM.mutate(v)} onClose={() => setCreating(false)} saving={createM.isPending} />

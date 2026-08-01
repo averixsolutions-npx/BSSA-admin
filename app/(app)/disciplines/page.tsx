@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { MoreHorizontal, Pencil, Trash2, Eye, EyeOff, Plus, Loader2 } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash2, Eye, EyeOff, Plus, Trophy } from "lucide-react";
 import { toast } from "sonner";
 
 import { disciplinesService } from "@/lib/services/disciplines";
@@ -11,6 +11,7 @@ import { ApiCallError } from "@/lib/api-client";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { ListShell } from "@/components/list-shell";
 import { ReorderableList } from "@/components/reorderable-list";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -28,27 +29,44 @@ export default function DisciplinesListPage() {
   const reorderM = useMutation({
     mutationFn: (order: { id: string; sortOrder: number }[]) => disciplinesService.reorder(order),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["disciplines"] }); },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Could not reorder"),
+    onError: (e) => toast.error("Couldn't save the new order", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
-  const publishM = useMutation({ mutationFn: (id: string) => disciplinesService.publish(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ["disciplines"] }); toast.success("Published"); } });
-  const unpublishM = useMutation({ mutationFn: (id: string) => disciplinesService.unpublish(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ["disciplines"] }); toast.success("Unpublished"); } });
+  const publishM = useMutation({
+    mutationFn: (id: string) => disciplinesService.publish(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["disciplines"] }); toast.success("Discipline published"); },
+    onError: (e) => toast.error("Couldn't publish", { description: e instanceof ApiCallError ? e.message : undefined }),
+  });
+  const unpublishM = useMutation({
+    mutationFn: (id: string) => disciplinesService.unpublish(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["disciplines"] }); toast.success("Discipline unpublished"); },
+    onError: (e) => toast.error("Couldn't unpublish", { description: e instanceof ApiCallError ? e.message : undefined }),
+  });
   const deleteM = useMutation({
     mutationFn: (id: string) => disciplinesService.remove(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["disciplines"] }); toast.success("Deleted"); setPendingDelete(null); },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["disciplines"] }); toast.success("Discipline deleted"); setPendingDelete(null); },
+    onError: (e) => toast.error("Couldn't delete the discipline", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
 
   return (
     <div className="space-y-6">
       <PageHeader title="Disciplines" description="Team / discipline pages. Drag to reorder." action={<Button onClick={() => router.push("/disciplines/new")}><Plus className="h-4 w-4" />New discipline</Button>} />
 
-      {isLoading ? (
-        <div className="flex h-40 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-      ) : isError ? (
-        <p className="text-destructive">Couldn't load disciplines.</p>
-      ) : items.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-8 text-center">No disciplines yet. Click 'New discipline' to add one.</p>
-      ) : (
+      <ListShell
+        isLoading={isLoading}
+        isError={isError}
+        errorTitle="Couldn't load disciplines"
+        isEmpty={items.length === 0}
+        empty={{
+          icon: Trophy,
+          title: "No disciplines yet",
+          description: "Each discipline gets a public page with selection criteria and history.",
+          action: (
+            <Button size="sm" onClick={() => router.push("/disciplines/new")}>
+              <Plus className="h-4 w-4" />Add the first discipline
+            </Button>
+          ),
+        }}
+      >
         <ReorderableList
           items={items}
           onReorder={(order) => reorderM.mutate(order)}
@@ -81,7 +99,7 @@ export default function DisciplinesListPage() {
             );
           }}
         />
-      )}
+      </ListShell>
 
       <ConfirmDialog open={!!pendingDelete} onOpenChange={(o) => !o && setPendingDelete(null)} title="Delete discipline?" description={pendingDelete ? `"${pendingDelete.name}" will be permanently deleted.` : ""} confirmLabel="Delete" destructive onConfirm={async () => { if (pendingDelete) await deleteM.mutateAsync(pendingDelete.id); }} />
     </div>

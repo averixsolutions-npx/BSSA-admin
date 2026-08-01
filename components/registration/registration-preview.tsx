@@ -12,10 +12,7 @@ export function RegistrationPreview({
 }) {
   const cfg = { ...DEFAULT_STANDARD_FIELDS, ...standardFields };
   return (
-    <div className="rounded-lg border bg-background p-4">
-      <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        Preview — what the athlete sees
-      </p>
+    <div className="rounded-lg border bg-muted/20 p-4">
       <div className="space-y-3">
         {STANDARD_FIELD_ORDER.filter((k) => cfg[k]?.show).map((k) => (
           <div key={k}>

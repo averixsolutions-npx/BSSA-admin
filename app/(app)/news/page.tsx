@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
-  MoreHorizontal, Pencil, Trash2, Eye, EyeOff, Plus,
+  MoreHorizontal, Pencil, Trash2, Eye, EyeOff, Plus, Newspaper, SearchX,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -172,7 +172,24 @@ export default function NewsListPage() {
         data={filteredItems}
         isLoading={isLoading}
         isError={isError}
-        emptyMessage="No news articles yet. Click 'New article' to create the first one."
+        empty={
+          search.trim() || status
+            ? {
+                icon: SearchX,
+                title: "No articles match",
+                description: "Try a different search term, or clear the status filter.",
+              }
+            : {
+                icon: Newspaper,
+                title: "No news articles yet",
+                description: "Articles and announcements you publish here show up on the public site.",
+                action: (
+                  <Button size="sm" onClick={() => router.push("/news/new")}>
+                    <Plus className="h-4 w-4" />Write the first article
+                  </Button>
+                ),
+              }
+        }
         search={{
           value: search,
           onChange: (v) => { setSearch(v); },

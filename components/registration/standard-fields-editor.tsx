@@ -23,11 +23,6 @@ export function StandardFieldsEditor({
 
   return (
     <div className="space-y-2">
-      <p className="text-sm font-medium">Standard details</p>
-      <p className="text-xs text-muted-foreground">
-        Auto-filled from each registrant&apos;s profile — they only review and confirm. Tick what to
-        ask for and what&apos;s required.
-      </p>
       <div className="divide-y rounded-md border">
         {STANDARD_FIELD_ORDER.map((key) => {
           const c = cfg[key] ?? { show: false, required: false };

@@ -1,10 +1,17 @@
 "use client";
 import { useState } from "react";
-import { CheckCircle2, XCircle, AlertCircle, FileX } from "lucide-react";
+import { FileCheck2, FileX, Lock } from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Disclosure } from "@/components/disclosure";
+import { DocumentStatusBadge } from "@/components/document-status-badge";
+import { EmptyState } from "@/components/empty-state";
+import { SectionCard } from "@/components/section-card";
 import { ImageLightbox, type LightboxImage } from "@/components/image-lightbox";
 import { DocumentReviewDialog } from "@/components/document-review-dialog";
 import type { VerificationStatus } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 export interface ReviewableDoc {
   id: string;
@@ -24,6 +31,7 @@ interface Props<DocType extends string, Doc extends ReviewableDoc> {
   isVerifying?: boolean;
   /** Templates shown as chips in the reject dialog. */
   rejectTemplates?: string[];
+  title?: string;
 }
 
 export function DocumentsReviewGrid<DocType extends string, Doc extends ReviewableDoc>({
@@ -35,138 +43,189 @@ export function DocumentsReviewGrid<DocType extends string, Doc extends Reviewab
   onVerify,
   isVerifying,
   rejectTemplates,
+  title = "Documents",
 }: Props<DocType, Doc>) {
   const [reviewing, setReviewing] = useState<{ doc: Doc; label: string } | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
-  const uploadedDocs = allTypes
-    .map((t) => documents.find((d) => d.type === t))
-    .filter((d): d is Doc => !!d);
+  const docFor = (type: DocType) => documents.find((d) => d.type === type);
 
+  // What stays on screen: everything required, plus every optional slot that
+  // already holds a document. Only empty optional slots fold away (P2) — a
+  // required or filled slot is never hidden.
+  const alwaysVisible = allTypes.filter((t) => mandatoryTypes.includes(t) || !!docFor(t));
+  const foldedOptional = allTypes.filter((t) => !mandatoryTypes.includes(t) && !docFor(t));
+
+  // Lightbox order follows display order so the arrows walk the page top-down.
+  const orderedTypes = [...alwaysVisible, ...foldedOptional];
+  const uploadedDocs = orderedTypes.map(docFor).filter((d): d is Doc => !!d);
   const lightboxImages: LightboxImage[] = uploadedDocs.map((d) => ({
     url: d.viewUrl,
     label: labels[d.type as DocType],
   }));
 
-  const approvedMandatoryCount = mandatoryTypes.filter((t) =>
-    documents.some((d) => d.type === t && d.status === "APPROVED")
+  const approvedMandatoryCount = mandatoryTypes.filter(
+    (t) => docFor(t)?.status === "APPROVED"
   ).length;
+  const allMandatoryApproved =
+    mandatoryTypes.length > 0 && approvedMandatoryCount === mandatoryTypes.length;
+  const pendingCount = documents.filter((d) => d.status === "PENDING").length;
 
-  return (
-    <section className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Documents</h2>
-        {mandatoryTypes.length > 0 && (
-          <span className="text-sm text-muted-foreground">
-            {approvedMandatoryCount}/{mandatoryTypes.length} mandatory approved
-          </span>
+  const renderCard = (type: DocType) => {
+    const doc = docFor(type);
+    const mandatory = mandatoryTypes.includes(type);
+    const label = labels[type];
+
+    if (!doc) {
+      return (
+        <div
+          key={type}
+          className={cn(
+            "flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-3 text-center",
+            mandatory ? "border-amber-500/40 bg-amber-500/5" : "bg-muted/30"
+          )}
+        >
+          <FileX className={cn("h-5 w-5", mandatory ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")} />
+          <div>
+            <p className="text-xs font-medium">{label}</p>
+            <p className="text-[11px] text-muted-foreground">
+              {mandatory ? "Required · not uploaded" : "Not uploaded"}
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    const idx = uploadedDocs.findIndex((d) => d.id === doc.id);
+    const border =
+      doc.status === "APPROVED"
+        ? "border-emerald-500/50"
+        : doc.status === "REJECTED"
+        ? "border-red-500/50"
+        : "border-amber-500/40";
+
+    return (
+      <div key={type} className={cn("overflow-hidden rounded-xl border-2 bg-card", border)}>
+        <button
+          type="button"
+          onClick={() => setLightboxIndex(idx)}
+          className="group relative block aspect-[4/3] w-full overflow-hidden bg-muted"
+          title={`Open ${label}`}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={doc.viewUrl}
+            alt={label}
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+          />
+          <span className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/20" />
+        </button>
+
+        <div className="space-y-1 border-t px-3 py-2">
+          <div className="flex items-center justify-between gap-2">
+            <p className="truncate text-xs font-medium">{label}</p>
+            {mandatory && <span className="shrink-0 text-[10px] text-muted-foreground">Required</span>}
+          </div>
+          <DocumentStatusBadge status={doc.status} />
+          {doc.reviewNote && doc.status === "REJECTED" && (
+            <p className="text-[11px] leading-snug text-red-600 dark:text-red-400">
+              Reason: {doc.reviewNote}
+            </p>
+          )}
+        </div>
+
+        {doc.status === "APPROVED" ? (
+          // Approved is a verdict, not a draft — no control here can quietly
+          // undo it. (The server rejects the change too.)
+          <p className="flex items-center gap-1.5 border-t px-3 py-2 text-[11px] text-muted-foreground">
+            <Lock className="h-3 w-3 shrink-0" /> Locked after approval
+          </p>
+        ) : (
+          <div className="flex gap-2 px-3 pb-3">
+            <Button
+              size="sm"
+              className="h-7 flex-1 text-[11px]"
+              disabled={isVerifying}
+              onClick={() => onVerify(doc.id, "APPROVED")}
+            >
+              Approve
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 flex-1 text-[11px]"
+              disabled={isVerifying}
+              onClick={() => setReviewing({ doc, label })}
+            >
+              Reject
+            </Button>
+          </div>
         )}
       </div>
+    );
+  };
 
+  return (
+    <SectionCard
+      title={title}
+      description={
+        mandatoryTypes.length > 0
+          ? "Required documents first. Approve each one before approving the profile."
+          : "All document types are optional for this member."
+      }
+      icon={FileCheck2}
+      tone="blue"
+      action={
+        mandatoryTypes.length > 0 ? (
+          <Badge variant={allMandatoryApproved ? "success" : "warning"}>
+            {approvedMandatoryCount}/{mandatoryTypes.length} required approved
+          </Badge>
+        ) : pendingCount > 0 ? (
+          <Badge variant="warning">{pendingCount} pending</Badge>
+        ) : undefined
+      }
+      contentClassName="space-y-4"
+    >
       {isLoading ? (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="aspect-[4/3] animate-pulse rounded-xl border bg-muted/40" />
           ))}
         </div>
+      ) : alwaysVisible.length === 0 && foldedOptional.length === 0 ? (
+        <EmptyState
+          icon={FileX}
+          title="No documents to review"
+          description="Nothing has been uploaded for this member yet."
+        />
       ) : (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-          {allTypes.map((type) => {
-            const doc = documents.find((d) => d.type === type);
-            const mandatory = mandatoryTypes.includes(type);
-            const label = labels[type];
+        <>
+          {alwaysVisible.length > 0 ? (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              {alwaysVisible.map(renderCard)}
+            </div>
+          ) : (
+            <EmptyState
+              icon={FileX}
+              title="Nothing uploaded yet"
+              description="Optional document slots are listed below."
+              variant="inline"
+            />
+          )}
 
-            if (!doc) {
-              return (
-                <div
-                  key={type}
-                  className="flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed bg-muted/30 p-3 text-center"
-                >
-                  <FileX className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <p className="text-xs font-medium">{label}</p>
-                    <p className="text-[11px] text-muted-foreground">
-                      {mandatory ? "Mandatory · not uploaded" : "Not uploaded"}
-                    </p>
-                  </div>
-                </div>
-              );
-            }
-
-            const idx = uploadedDocs.findIndex((d) => d.id === doc.id);
-            const border =
-              doc.status === "APPROVED"
-                ? "border-emerald-500/50"
-                : doc.status === "REJECTED"
-                ? "border-red-500/50"
-                : "border-border";
-
-            return (
-              <div key={type} className={`overflow-hidden rounded-xl border-2 ${border} bg-card`}>
-                <button
-                  type="button"
-                  onClick={() => setLightboxIndex(idx)}
-                  className="group relative block aspect-[4/3] w-full overflow-hidden bg-muted"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={doc.viewUrl}
-                    alt={label}
-                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                  />
-                  <span className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/20" />
-                </button>
-
-                <div className="border-t px-3 py-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="truncate text-xs font-medium">{label}</p>
-                    {doc.status === "APPROVED" && (
-                      <span className="flex shrink-0 items-center gap-1 text-[10px] font-bold text-emerald-600">
-                        <CheckCircle2 size={11} /> APPROVED
-                      </span>
-                    )}
-                    {doc.status === "REJECTED" && (
-                      <span className="flex shrink-0 items-center gap-1 text-[10px] font-bold text-red-600">
-                        <XCircle size={11} /> REJECTED
-                      </span>
-                    )}
-                    {doc.status === "PENDING" && (
-                      <span className="flex shrink-0 items-center gap-1 text-[10px] font-bold text-amber-600">
-                        <AlertCircle size={11} /> PENDING
-                      </span>
-                    )}
-                  </div>
-                  {mandatory && <p className="mt-0.5 text-[10px] text-muted-foreground">Mandatory</p>}
-                  {doc.reviewNote && doc.status === "REJECTED" && (
-                    <p className="mt-1 text-[11px] leading-snug text-red-600">Reason: {doc.reviewNote}</p>
-                  )}
-                </div>
-
-                {doc.status !== "APPROVED" && (
-                  <div className="flex gap-2 px-3 pb-3">
-                    <Button
-                      size="sm"
-                      className="h-7 flex-1 text-[11px]"
-                      disabled={isVerifying}
-                      onClick={() => onVerify(doc.id, "APPROVED")}
-                    >
-                      Approve
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 flex-1 text-[11px]"
-                      disabled={isVerifying}
-                      onClick={() => setReviewing({ doc, label })}
-                    >
-                      Reject
-                    </Button>
-                  </div>
-                )}
+          {foldedOptional.length > 0 && (
+            <Disclosure
+              label="Show optional documents"
+              openLabel="Hide optional documents"
+              count={foldedOptional.length}
+              contentClassName="pt-1"
+            >
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                {foldedOptional.map(renderCard)}
               </div>
-            );
-          })}
-        </div>
+            </Disclosure>
+          )}
+        </>
       )}
 
       <DocumentReviewDialog
@@ -187,6 +246,6 @@ export function DocumentsReviewGrid<DocType extends string, Doc extends Reviewab
         onClose={() => setLightboxIndex(null)}
         onIndexChange={setLightboxIndex}
       />
-    </section>
+    </SectionCard>
   );
 }

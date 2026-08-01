@@ -6,12 +6,15 @@ import {
   useReactTable,
   type ColumnDef,
 } from "@tanstack/react-table";
-import { ChevronLeft, ChevronRight, Loader2, Search } from "lucide-react";
+import {
+  AlertTriangle, ChevronLeft, ChevronRight, Inbox, Loader2, Search, X, type LucideIcon,
+} from "lucide-react";
 
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/empty-state";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +23,14 @@ interface DataTableProps<TData> {
   data: TData[];
   isLoading?: boolean;
   isError?: boolean;
+  /** Icon, one line of what goes here, and the primary action. */
+  empty?: {
+    icon?: LucideIcon;
+    title: string;
+    description?: string;
+    action?: React.ReactNode;
+  };
+  /** @deprecated pass `empty` instead — kept so older call sites still render. */
   emptyMessage?: string;
   /** Server-side pagination controls. Omit for non-paginated tables. */
   pagination?: {
@@ -47,6 +58,7 @@ export function DataTable<TData>({
   data,
   isLoading,
   isError,
+  empty,
   emptyMessage = "No records yet",
   pagination,
   search,
@@ -64,19 +76,29 @@ export function DataTable<TData>({
   return (
     <div className="space-y-3">
       {(search || toolbar) && (
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           {search && (
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <div className="relative w-full sm:w-72">
+              <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={search.value}
                 onChange={(e) => search.onChange(e.target.value)}
                 placeholder={search.placeholder ?? "Search…"}
-                className="pl-8"
+                className="h-9 pl-8 pr-8"
               />
+              {search.value && (
+                <button
+                  type="button"
+                  aria-label="Clear search"
+                  onClick={() => search.onChange("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
           )}
-          {toolbar && <div className="flex items-center gap-2">{toolbar}</div>}
+          {toolbar && <div className="flex flex-wrap items-center gap-2">{toolbar}</div>}
         </div>
       )}
 
@@ -103,15 +125,26 @@ export function DataTable<TData>({
                 </TableCell>
               </TableRow>
             ) : isError ? (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-32 text-center text-destructive">
-                  Couldn't load records. Refresh to retry.
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={columns.length} className="p-0">
+                  <EmptyState
+                    icon={AlertTriangle}
+                    title="Couldn't load these records"
+                    description="The API didn't respond. Refresh the page to try again."
+                    variant="inline"
+                  />
                 </TableCell>
               </TableRow>
             ) : table.getRowModel().rows.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-32 text-center text-muted-foreground">
-                  {emptyMessage}
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={columns.length} className="p-0">
+                  <EmptyState
+                    icon={empty?.icon ?? Inbox}
+                    title={empty?.title ?? emptyMessage}
+                    description={empty?.description}
+                    action={empty?.action}
+                    variant="inline"
+                  />
                 </TableCell>
               </TableRow>
             ) : (

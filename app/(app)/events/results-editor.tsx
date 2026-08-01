@@ -4,14 +4,19 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, type UseFormSetValue } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Pencil, Trash2, Loader2, Save, X, Link2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Save, X, Link2, Trophy } from "lucide-react";
 import { toast } from "sonner";
 
 import { eventsService } from "@/lib/services/events";
 import type { EventResult, EventRegistration } from "@/lib/types";
 import { ApiCallError } from "@/lib/api-client";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { EmptyState } from "@/components/empty-state";
+import { SectionCard } from "@/components/section-card";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 
@@ -55,7 +60,7 @@ export function ResultsEditor({ eventId }: ResultsEditorProps) {
   const queryClient = useQueryClient();
   const queryKey = ["events", "results", eventId];
 
-  const [showAddForm, setShowAddForm] = useState(false);
+  const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<EventResult | null>(null);
 
@@ -78,9 +83,12 @@ export function ResultsEditor({ eventId }: ResultsEditorProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
       toast.success("Result added");
-      setShowAddForm(false);
+      setShowAddDialog(false);
     },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+    onError: (e) =>
+      toast.error("Couldn't add the result", {
+        description: e instanceof ApiCallError ? e.message : undefined,
+      }),
   });
 
   const updateMutation = useMutation({
@@ -91,7 +99,10 @@ export function ResultsEditor({ eventId }: ResultsEditorProps) {
       toast.success("Result updated");
       setEditingId(null);
     },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+    onError: (e) =>
+      toast.error("Couldn't save the result", {
+        description: e instanceof ApiCallError ? e.message : undefined,
+      }),
   });
 
   const deleteMutation = useMutation({
@@ -101,24 +112,46 @@ export function ResultsEditor({ eventId }: ResultsEditorProps) {
       toast.success("Result deleted");
       setPendingDelete(null);
     },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+    onError: (e) =>
+      toast.error("Couldn't delete the result", {
+        description: e instanceof ApiCallError ? e.message : undefined,
+      }),
   });
 
-  if (isLoading) return <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />;
-
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Results table</h3>
-        {!showAddForm && (
-          <Button size="sm" onClick={() => setShowAddForm(true)}>
-            <Plus className="h-4 w-4" /> Add result
-          </Button>
-        )}
-      </div>
-
-      {results.length > 0 && (
-        <div className="rounded-md border">
+    <SectionCard
+      title="Results"
+      description={
+        results.length > 0
+          ? `${results.length} placing${results.length === 1 ? "" : "s"} recorded.`
+          : "The ranked table shown on the public event page."
+      }
+      icon={Trophy}
+      tone="amber"
+      action={
+        <Button size="sm" onClick={() => setShowAddDialog(true)}>
+          <Plus className="h-4 w-4" /> Add result
+        </Button>
+      }
+      contentClassName="space-y-4"
+    >
+      {isLoading ? (
+        <div className="flex h-24 items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : results.length === 0 ? (
+        <EmptyState
+          icon={Trophy}
+          title="No results yet"
+          description="Add placings once the event has been run — they appear on the public event page."
+          action={
+            <Button size="sm" variant="outline" onClick={() => setShowAddDialog(true)}>
+              <Plus className="h-4 w-4" /> Add the first result
+            </Button>
+          }
+        />
+      ) : (
+        <div className="overflow-x-auto rounded-md border">
           <Table>
             <TableHeader>
               <TableRow>
@@ -163,10 +196,10 @@ export function ResultsEditor({ eventId }: ResultsEditorProps) {
                     <TableCell className="text-xs text-muted-foreground">{r.remarks ?? ""}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditingId(r.id)}>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditingId(r.id)} title="Edit result">
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
-                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => setPendingDelete(r)}>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => setPendingDelete(r)} title="Delete result">
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
@@ -179,15 +212,11 @@ export function ResultsEditor({ eventId }: ResultsEditorProps) {
         </div>
       )}
 
-      {results.length === 0 && !showAddForm && (
-        <p className="text-sm text-muted-foreground py-4">No results recorded for this event yet.</p>
-      )}
-
-      {showAddForm && (
-        <AddResultForm
+      {showAddDialog && (
+        <AddResultDialog
           registrants={registrants}
           onSubmit={(vals) => createMutation.mutate(vals)}
-          onCancel={() => setShowAddForm(false)}
+          onClose={() => setShowAddDialog(false)}
           saving={createMutation.isPending}
         />
       )}
@@ -203,7 +232,7 @@ export function ResultsEditor({ eventId }: ResultsEditorProps) {
           if (pendingDelete) await deleteMutation.mutateAsync(pendingDelete.id);
         }}
       />
-    </div>
+    </SectionCard>
   );
 }
 
@@ -256,17 +285,17 @@ function RegistrantPicker({
   );
 }
 
-// ── Add result form (appears at the bottom of the results section) ──
+// ── Add result dialog (P3 — creation never sits open on the page) ──
 
-function AddResultForm({
+function AddResultDialog({
   registrants,
   onSubmit,
-  onCancel,
+  onClose,
   saving,
 }: {
   registrants: EventRegistration[];
   onSubmit: (v: ResultFormValues) => void;
-  onCancel: () => void;
+  onClose: () => void;
   saving: boolean;
 }) {
   const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<ResultFormValues>({
@@ -278,39 +307,58 @@ function AddResultForm({
   });
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="rounded-md border p-4 space-y-3 bg-muted/30">
-      <p className="text-sm font-medium">Add result</p>
-      <div className="grid grid-cols-7 gap-2">
-        <Input type="number" placeholder="Rank" {...register("rank")} className="col-span-1" />
-        <Input placeholder="Athlete / Team *" {...register("athleteOrTeam")} className="col-span-2" />
-        <Input placeholder="State" {...register("state")} className="col-span-1" />
-        <Input placeholder="Category" {...register("category")} className="col-span-1" />
-        <Input placeholder="Result *" {...register("resultValue")} className="col-span-1" />
-        <Input placeholder="Timing" {...register("timing")} className="col-span-1" />
-      </div>
-      <div className="grid grid-cols-7 gap-2">
-        <Input placeholder="Remarks" {...register("remarks")} className="col-span-2" />
-        {registrants.length > 0 && (
-          <RegistrantPicker
-            registrants={registrants}
-            value={{ athleteProfileId: watch("athleteProfileId"), associationProfileId: watch("associationProfileId") }}
-            setValue={setValue}
-            className="col-span-2 h-10 rounded-md border border-input bg-background px-2 text-sm"
-          />
-        )}
-      </div>
-      {(errors.rank || errors.athleteOrTeam || errors.resultValue) && (
-        <p className="text-xs text-destructive">
-          {errors.rank?.message || errors.athleteOrTeam?.message || errors.resultValue?.message}
-        </p>
-      )}
-      <div className="flex gap-2">
-        <Button size="sm" type="submit" disabled={saving}>
-          {saving && <Loader2 className="mr-1 h-3 w-3 animate-spin" />} Add
-        </Button>
-        <Button size="sm" type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
-      </div>
-    </form>
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Add result</DialogTitle>
+          <DialogDescription>
+            Rank, name and result are required. Tag a confirmed registrant to link the placing to
+            their profile.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <Input type="number" placeholder="Rank" {...register("rank")} />
+            <Input placeholder="Result *" {...register("resultValue")} />
+          </div>
+          <Input placeholder="Athlete / Team *" {...register("athleteOrTeam")} />
+          <div className="grid grid-cols-2 gap-3">
+            <Input placeholder="State" {...register("state")} />
+            <Input placeholder="Category" {...register("category")} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Input placeholder="Timing" {...register("timing")} />
+            <Input placeholder="Remarks" {...register("remarks")} />
+          </div>
+
+          {registrants.length > 0 && (
+            <RegistrantPicker
+              registrants={registrants}
+              value={{
+                athleteProfileId: watch("athleteProfileId"),
+                associationProfileId: watch("associationProfileId"),
+              }}
+              setValue={setValue}
+              className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm"
+            />
+          )}
+
+          {(errors.rank || errors.athleteOrTeam || errors.resultValue) && (
+            <p className="text-xs text-destructive">
+              {errors.rank?.message || errors.athleteOrTeam?.message || errors.resultValue?.message}
+            </p>
+          )}
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+            <Button type="submit" disabled={saving}>
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Add
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -363,10 +411,10 @@ function InlineEditRow({
       <TableCell><Input className="h-8 text-xs" {...register("remarks")} /></TableCell>
       <TableCell>
         <div className="flex gap-1">
-          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleSubmit(onSave)} disabled={saving}>
+          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleSubmit(onSave)} disabled={saving} title="Save">
             <Save className="h-3.5 w-3.5" />
           </Button>
-          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={onCancel}>
+          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={onCancel} title="Cancel">
             <X className="h-3.5 w-3.5" />
           </Button>
         </div>

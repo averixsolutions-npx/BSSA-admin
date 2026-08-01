@@ -10,6 +10,7 @@ import { ApiCallError } from "@/lib/api-client";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { LoadError } from "@/components/load-error";
 import { Button } from "@/components/ui/button";
 import { HeroForm, type HeroFormValues } from "../hero-form";
 
@@ -34,19 +35,28 @@ export default function EditHeroPage() {
         ctaLabel: v.ctaLabel || undefined,
         ctaHref: v.ctaHref || undefined,
       }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hero"] }); toast.success("Saved"); },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hero"] }); toast.success("Slide saved"); },
+    onError: (e) => toast.error("Couldn't save the slide", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
-  const publishM = useMutation({ mutationFn: () => heroService.publish(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ["hero"] }); toast.success("Published"); } });
-  const unpublishM = useMutation({ mutationFn: () => heroService.unpublish(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ["hero"] }); toast.success("Unpublished"); } });
-  const deleteM = useMutation({ mutationFn: () => heroService.remove(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ["hero"] }); toast.success("Deleted"); router.push("/hero"); } });
+  const publishM = useMutation({
+    mutationFn: () => heroService.publish(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hero"] }); toast.success("Slide published"); },
+    onError: (e) => toast.error("Couldn't publish", { description: e instanceof ApiCallError ? e.message : undefined }),
+  });
+  const unpublishM = useMutation({
+    mutationFn: () => heroService.unpublish(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hero"] }); toast.success("Slide unpublished"); },
+    onError: (e) => toast.error("Couldn't unpublish", { description: e instanceof ApiCallError ? e.message : undefined }),
+  });
+  const deleteM = useMutation({
+    mutationFn: () => heroService.remove(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hero"] }); toast.success("Slide deleted"); router.push("/hero"); },
+    onError: (e) => toast.error("Couldn't delete the slide", { description: e instanceof ApiCallError ? e.message : undefined }),
+  });
 
   if (isLoading) return <div className="flex h-64 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
   if (isError || !item) return (
-    <div className="space-y-4">
-      <p className="text-destructive">Couldn't load this slide.</p>
-      <Button variant="outline" onClick={() => router.push("/hero")}>Back</Button>
-    </div>
+    <LoadError title="Couldn't load this slide" backLabel="Back to hero slides" onBack={() => router.push("/hero")} />
   );
 
   const pub = item.status === "PUBLISHED";

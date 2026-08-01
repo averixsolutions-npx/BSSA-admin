@@ -10,7 +10,6 @@ import { ApiCallError } from "@/lib/api-client";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { ConfirmDialog } from "@/components/confirm-dialog";
-import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { EventForm, toRegistrationInput, type EventFormValues } from "../event-form";
 import { ResultsEditor } from "../results-editor";
@@ -50,13 +49,25 @@ export default function EditEventPage() {
         resultsPdfUrl: v.resultsPdfUrl ?? undefined,
         ...toRegistrationInput(v),
       }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["events"] }); toast.success("Saved"); },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["events"] }); toast.success("Event saved"); },
+    onError: (e) => toast.error("Couldn't save the event", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
 
-  const publishM = useMutation({ mutationFn: () => eventsService.publish(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ["events"] }); toast.success("Published"); } });
-  const unpublishM = useMutation({ mutationFn: () => eventsService.unpublish(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ["events"] }); toast.success("Unpublished"); } });
-  const deleteM = useMutation({ mutationFn: () => eventsService.remove(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ["events"] }); toast.success("Deleted"); router.push("/events"); } });
+  const publishM = useMutation({
+    mutationFn: () => eventsService.publish(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["events"] }); toast.success("Event published"); },
+    onError: (e) => toast.error("Couldn't publish", { description: e instanceof ApiCallError ? e.message : undefined }),
+  });
+  const unpublishM = useMutation({
+    mutationFn: () => eventsService.unpublish(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["events"] }); toast.success("Event unpublished"); },
+    onError: (e) => toast.error("Couldn't unpublish", { description: e instanceof ApiCallError ? e.message : undefined }),
+  });
+  const deleteM = useMutation({
+    mutationFn: () => eventsService.remove(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["events"] }); toast.success("Event deleted"); router.push("/events"); },
+    onError: (e) => toast.error("Couldn't delete the event", { description: e instanceof ApiCallError ? e.message : undefined }),
+  });
 
   if (isLoading || !event) return <div className="flex h-64 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
 
@@ -86,23 +97,17 @@ export default function EditEventPage() {
         lockedFieldKeys={lockedFieldKeys}
       />
 
-      <Separator className="my-8" />
+      <div className="max-w-3xl space-y-5">
+        <ResultsEditor eventId={id} />
 
-      <ResultsEditor eventId={id} />
-
-      {event.registrationEnabled && (
-        <>
-          <Separator className="my-8" />
-          <section className="space-y-3">
-            <h3 className="text-lg font-semibold">Registrations</h3>
-            <EventRegistrationsTable
-              eventId={id}
-              fields={event.registrationFields ?? []}
-              standardFields={event.standardFields ?? undefined}
-            />
-          </section>
-        </>
-      )}
+        {event.registrationEnabled && (
+          <EventRegistrationsTable
+            eventId={id}
+            fields={event.registrationFields ?? []}
+            standardFields={event.standardFields ?? undefined}
+          />
+        )}
+      </div>
 
       <ConfirmDialog open={confirmDelete} onOpenChange={setConfirmDelete} title="Delete event?" description={`"${event.title}" and all results will be permanently deleted.`} confirmLabel="Delete" destructive onConfirm={() => deleteM.mutateAsync()} />
     </div>

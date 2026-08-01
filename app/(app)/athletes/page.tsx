@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
+import { CheckCircle2, SearchX, UserCog } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 
@@ -62,7 +63,7 @@ export default function AthletesListPage() {
   const publishMutation = useMutation({
     mutationFn: ({ id, isPublished }: { id: string; isPublished: boolean }) => athletesAdminService.setPublished(id, isPublished),
     onSuccess: (_, vars) => { qc.invalidateQueries({ queryKey: ["athletes"] }); toast.success(vars.isPublished ? "Published" : "Unpublished"); },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+    onError: (e) => toast.error("Couldn't change visibility", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
 
   const columns: ColumnDef<AthleteProfile>[] = [
@@ -161,7 +162,25 @@ export default function AthletesListPage() {
         data={data?.items ?? []}
         isLoading={isLoading}
         isError={isError}
-        emptyMessage={bucket === "PENDING" ? "Nothing to review. New submissions will appear here." : "No athletes in this bucket."}
+        empty={
+          debounced
+            ? {
+                icon: SearchX,
+                title: "No athletes match that search",
+                description: "Try a Member ID, FIS ID, or part of the name.",
+              }
+            : bucket === "PENDING"
+            ? {
+                icon: CheckCircle2,
+                title: "Nothing to review",
+                description: "New submissions land here as soon as athletes send them in.",
+              }
+            : {
+                icon: UserCog,
+                title: "No athletes in this bucket",
+                description: "Switch to All to see every registered athlete.",
+              }
+        }
         onRowClick={(a) => router.push(`/athletes/${a.id}`)}
         search={{
           value: search,

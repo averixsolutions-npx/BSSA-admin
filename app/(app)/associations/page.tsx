@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
+import { Building2, CheckCircle2, SearchX } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 
@@ -61,7 +62,7 @@ export default function AssociationsListPage() {
   const publishMutation = useMutation({
     mutationFn: ({ id, isPublished }: { id: string; isPublished: boolean }) => associationsAdminService.setPublished(id, isPublished),
     onSuccess: (_, vars) => { qc.invalidateQueries({ queryKey: ["associations"] }); toast.success(vars.isPublished ? "Published" : "Unpublished"); },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+    onError: (e) => toast.error("Couldn't change visibility", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
 
   const columns: ColumnDef<AssociationProfile>[] = [
@@ -163,7 +164,25 @@ export default function AssociationsListPage() {
         data={data?.items ?? []}
         isLoading={isLoading}
         isError={isError}
-        emptyMessage={bucket === "PENDING" ? "Nothing to review. New submissions will appear here." : "No associations in this bucket."}
+        empty={
+          search
+            ? {
+                icon: SearchX,
+                title: "No associations match that search",
+                description: "Try a Member ID or part of the name.",
+              }
+            : bucket === "PENDING"
+            ? {
+                icon: CheckCircle2,
+                title: "Nothing to review",
+                description: "New submissions land here as soon as associations send them in.",
+              }
+            : {
+                icon: Building2,
+                title: "No associations in this bucket",
+                description: "Switch to All to see every registered association.",
+              }
+        }
         onRowClick={(a) => router.push(`/associations/${a.id}`)}
         search={{
           value: search,

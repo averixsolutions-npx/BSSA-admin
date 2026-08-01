@@ -10,6 +10,7 @@ import { ApiCallError } from "@/lib/api-client";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { LoadError } from "@/components/load-error";
 import { Button } from "@/components/ui/button";
 import { NewsForm, type NewsFormValues } from "../news-form";
 
@@ -88,12 +89,7 @@ export default function EditNewsPage() {
 
   if (isError || !article) {
     return (
-      <div className="space-y-4">
-        <p className="text-destructive">Couldn't load this article. It may have been deleted.</p>
-        <Button variant="outline" onClick={() => router.push("/news")}>
-          Back to news
-        </Button>
-      </div>
+      <LoadError title="Couldn't load this article" backLabel="Back to news" onBack={() => router.push("/news")} />
     );
   }
 

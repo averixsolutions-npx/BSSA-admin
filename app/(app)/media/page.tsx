@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { MoreHorizontal, Pencil, Trash2, Eye, EyeOff, Plus } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash2, Eye, EyeOff, Plus, Video } from "lucide-react";
 import { toast } from "sonner";
 
 import { mediaService } from "@/lib/services/media";
@@ -32,12 +32,20 @@ export default function MediaListPage() {
     queryFn: () => mediaService.list({ page, limit: 20, platform: platform || undefined }),
   });
 
-  const publishM = useMutation({ mutationFn: (id: string) => mediaService.publish(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ["media"] }); toast.success("Published"); } });
-  const unpublishM = useMutation({ mutationFn: (id: string) => mediaService.unpublish(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ["media"] }); toast.success("Unpublished"); } });
+  const publishM = useMutation({
+    mutationFn: (id: string) => mediaService.publish(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["media"] }); toast.success("Media published"); },
+    onError: (e) => toast.error("Couldn't publish", { description: e instanceof ApiCallError ? e.message : undefined }),
+  });
+  const unpublishM = useMutation({
+    mutationFn: (id: string) => mediaService.unpublish(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["media"] }); toast.success("Media unpublished"); },
+    onError: (e) => toast.error("Couldn't unpublish", { description: e instanceof ApiCallError ? e.message : undefined }),
+  });
   const deleteM = useMutation({
     mutationFn: (id: string) => mediaService.remove(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["media"] }); toast.success("Deleted"); setPendingDelete(null); },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["media"] }); toast.success("Media deleted"); setPendingDelete(null); },
+    onError: (e) => toast.error("Couldn't delete the media item", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
 
   const columns: ColumnDef<MediaItem>[] = [
@@ -67,7 +75,16 @@ export default function MediaListPage() {
     <div className="space-y-6">
       <PageHeader title="Media" description="Video highlights embedded from social channels." action={<Button onClick={() => router.push("/media/new")}><Plus className="h-4 w-4" />New media</Button>} />
       <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} isError={isError}
-        emptyMessage="No media items yet."
+        empty={{
+          icon: Video,
+          title: platform ? "No media on this platform" : "No media items yet",
+          description: platform
+            ? "Switch the platform filter to see the rest."
+            : "Embed video highlights from YouTube, Instagram and the rest.",
+          action: !platform
+            ? <Button size="sm" onClick={() => router.push("/media/new")}><Plus className="h-4 w-4" />Add the first media item</Button>
+            : undefined,
+        }}
         toolbar={
           <Select value={platform || "all"} onValueChange={(v) => { setPlatform(v === "all" ? "" : v as MediaPlatform); setPage(1); }}>
             <SelectTrigger className="w-[160px]"><SelectValue placeholder="Platform" /></SelectTrigger>

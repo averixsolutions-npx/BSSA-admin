@@ -19,6 +19,8 @@ interface Props {
  *   SUSPENDED   → Reactivate, Blacklist, Delete
  *   BLACKLISTED → Reactivate, Delete
  * Delete is always destructive-styled and pushed to the far end.
+ *
+ * Renders bare — the caller frames it (a SectionCard on the detail pages).
  */
 export function ProfileActionsBar({
   status,
@@ -29,11 +31,7 @@ export function ProfileActionsBar({
   isPending,
 }: Props) {
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card p-3">
-      <span className="mr-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-        Account actions
-      </span>
-
+    <div className="flex flex-wrap items-center gap-2">
       {status === "ACTIVE" && (
         <>
           <Button variant="outline" size="sm" onClick={onSuspend} disabled={isPending}>

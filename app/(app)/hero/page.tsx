@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { MoreHorizontal, Pencil, Trash2, Eye, EyeOff, Plus, Loader2 } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash2, Eye, EyeOff, Plus, Image as ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { heroService } from "@/lib/services/hero";
@@ -11,6 +11,7 @@ import { ApiCallError } from "@/lib/api-client";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { ListShell } from "@/components/list-shell";
 import { ReorderableList } from "@/components/reorderable-list";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -28,27 +29,44 @@ export default function HeroListPage() {
   const reorderM = useMutation({
     mutationFn: (order: { id: string; sortOrder: number }[]) => heroService.reorder(order),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["hero"] }); },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Could not reorder"),
+    onError: (e) => toast.error("Couldn't save the new order", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
-  const publishM = useMutation({ mutationFn: (id: string) => heroService.publish(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ["hero"] }); toast.success("Published"); } });
-  const unpublishM = useMutation({ mutationFn: (id: string) => heroService.unpublish(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ["hero"] }); toast.success("Unpublished"); } });
+  const publishM = useMutation({
+    mutationFn: (id: string) => heroService.publish(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hero"] }); toast.success("Slide published"); },
+    onError: (e) => toast.error("Couldn't publish", { description: e instanceof ApiCallError ? e.message : undefined }),
+  });
+  const unpublishM = useMutation({
+    mutationFn: (id: string) => heroService.unpublish(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hero"] }); toast.success("Slide unpublished"); },
+    onError: (e) => toast.error("Couldn't unpublish", { description: e instanceof ApiCallError ? e.message : undefined }),
+  });
   const deleteM = useMutation({
     mutationFn: (id: string) => heroService.remove(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hero"] }); toast.success("Deleted"); setPendingDelete(null); },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hero"] }); toast.success("Slide deleted"); setPendingDelete(null); },
+    onError: (e) => toast.error("Couldn't delete the slide", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
 
   return (
     <div className="space-y-6">
       <PageHeader title="Hero slides" description="Homepage carousel. Drag to reorder." action={<Button onClick={() => router.push("/hero/new")}><Plus className="h-4 w-4" />New slide</Button>} />
 
-      {isLoading ? (
-        <div className="flex h-40 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-      ) : isError ? (
-        <p className="text-destructive">Couldn't load hero slides.</p>
-      ) : items.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-8 text-center">No hero slides yet.</p>
-      ) : (
+      <ListShell
+        isLoading={isLoading}
+        isError={isError}
+        errorTitle="Couldn't load hero slides"
+        isEmpty={items.length === 0}
+        empty={{
+          icon: ImageIcon,
+          title: "No hero slides yet",
+          description: "Slides make up the homepage carousel — the first thing visitors see.",
+          action: (
+            <Button size="sm" onClick={() => router.push("/hero/new")}>
+              <Plus className="h-4 w-4" />Add the first slide
+            </Button>
+          ),
+        }}
+      >
         <ReorderableList
           items={items}
           onReorder={(order) => reorderM.mutate(order)}
@@ -77,7 +95,7 @@ export default function HeroListPage() {
             );
           }}
         />
-      )}
+      </ListShell>
 
       <ConfirmDialog open={!!pendingDelete} onOpenChange={(o) => !o && setPendingDelete(null)} title="Delete hero slide?" description={pendingDelete ? `"${pendingDelete.headline}" will be permanently deleted.` : ""} confirmLabel="Delete" destructive onConfirm={async () => { if (pendingDelete) await deleteM.mutateAsync(pendingDelete.id); }} />
     </div>

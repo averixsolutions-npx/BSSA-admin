@@ -24,12 +24,15 @@ export function AssociationDocumentsGrid({ associationId }: { associationId: str
   const verifyMutation = useMutation({
     mutationFn: (v: { docId: string; status: VerificationStatus; reviewNote?: string }) =>
       associationDocumentsService.verify(associationId, v.docId, v.status, v.reviewNote),
-    onSuccess: () => {
+    onSuccess: (_, v) => {
       qc.invalidateQueries({ queryKey: ["association-documents", associationId] });
       qc.invalidateQueries({ queryKey: ["associations", "detail", associationId] });
-      toast.success("Document updated");
+      toast.success(v.status === "APPROVED" ? "Document approved" : "Document rejected");
     },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+    onError: (e) =>
+      toast.error("Couldn't record that verdict", {
+        description: e instanceof ApiCallError ? e.message : undefined,
+      }),
   });
 
   return (

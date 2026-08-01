@@ -1,7 +1,7 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Download } from "lucide-react";
+import { Download, MailPlus } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -50,7 +50,11 @@ export default function NewsletterListPage() {
         data={items}
         isLoading={isLoading}
         isError={isError}
-        emptyMessage="No newsletter signups yet."
+        empty={{
+          icon: MailPlus,
+          title: "No newsletter signups yet",
+          description: "Everyone who subscribes from the public site appears here, ready to export.",
+        }}
       />
     </div>
   );

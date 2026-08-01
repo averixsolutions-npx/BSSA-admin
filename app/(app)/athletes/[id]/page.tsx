@@ -2,7 +2,9 @@
 import { useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, ArrowLeft, FileX, Copy } from "lucide-react";
+import {
+  Loader2, ArrowLeft, Award, Lock, Medal, ShieldAlert, UserRound,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { athletesAdminService } from "@/lib/services/athletes-admin";
@@ -19,12 +21,16 @@ import {
   type VerificationStatus,
 } from "@/lib/types";
 import { ApiCallError } from "@/lib/api-client";
-import { PageHeader } from "@/components/page-header";
 import { AccountStatusBadge } from "@/components/account-status-badge";
 import { SubmissionStatusBadge } from "@/components/submission-status-badge";
 import { ApproveRejectBar } from "@/components/approve-reject-bar";
+import { CopyChip } from "@/components/copy-chip";
+import { EmptyState } from "@/components/empty-state";
+import { LoadError } from "@/components/load-error";
 import { PendingChangesBanner } from "@/components/pending-changes-banner";
+import { ProfileHeaderCard } from "@/components/profile-header-card";
 import { RejectionReasonBanner } from "@/components/rejection-reason-banner";
+import { SectionCard } from "@/components/section-card";
 import { DocumentsReviewGrid } from "@/components/documents-review-grid";
 import { DOCUMENT_REJECTION_TEMPLATES } from "@/components/rejection-templates";
 import { DocumentStatusBadge } from "@/components/document-status-badge";
@@ -34,8 +40,10 @@ import { ModerationDialog } from "@/components/moderation-dialog";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ImageLightbox, type LightboxImage } from "@/components/image-lightbox";
 import { MemberMediaGallery } from "@/components/member-media-gallery";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 export default function AthleteDetailPage() {
   const router = useRouter();
@@ -91,22 +99,31 @@ export default function AthleteDetailPage() {
   const verifyResultMutation = useMutation({
     mutationFn: ({ resultId, status, reviewNote }: { resultId: string; status: VerificationStatus; reviewNote?: string }) =>
       memberResultsService.verify(id, resultId, status, reviewNote),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["athlete-results", id] }); toast.success("Result updated"); },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+    onSuccess: (_, v) => {
+      qc.invalidateQueries({ queryKey: ["athlete-results", id] });
+      toast.success(v.status === "APPROVED" ? "Result approved" : "Result rejected");
+    },
+    onError: (e) => toast.error("Couldn't record that verdict", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
 
   const verifyDocMutation = useMutation({
     mutationFn: ({ docId, status, reviewNote }: { docId: string; status: VerificationStatus; reviewNote?: string }) =>
       athleteDocumentsService.verify(id, docId, status, reviewNote),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["athlete-documents", id] }); toast.success("Document updated"); },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+    onSuccess: (_, v) => {
+      qc.invalidateQueries({ queryKey: ["athlete-documents", id] });
+      toast.success(v.status === "APPROVED" ? "Document approved" : "Document rejected");
+    },
+    onError: (e) => toast.error("Couldn't record that verdict", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
 
   const verifyAchMutation = useMutation({
     mutationFn: ({ achId, status, reviewNote }: { achId: string; status: VerificationStatus; reviewNote?: string }) =>
       athleteAchievementsService.verify(id, achId, status, reviewNote),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["athlete-achievements", id] }); toast.success("Achievement updated"); },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+    onSuccess: (_, v) => {
+      qc.invalidateQueries({ queryKey: ["athlete-achievements", id] });
+      toast.success(v.status === "APPROVED" ? "Achievement approved" : "Achievement rejected");
+    },
+    onError: (e) => toast.error("Couldn't record that verdict", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
 
   const approveProfileMutation = useMutation({
@@ -117,7 +134,7 @@ export default function AthleteDetailPage() {
       qc.invalidateQueries({ queryKey: ["queue-counts", "athletes"] });
       toast.success("Profile approved");
     },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed to approve"),
+    onError: (e) => toast.error("Couldn't approve the profile", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
 
   const rejectProfileMutation = useMutation({
@@ -128,7 +145,7 @@ export default function AthleteDetailPage() {
       qc.invalidateQueries({ queryKey: ["queue-counts", "athletes"] });
       toast.success("Profile rejected — user has been notified");
     },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed to reject"),
+    onError: (e) => toast.error("Couldn't reject the profile", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
 
   const statusMutation = useMutation({
@@ -137,9 +154,9 @@ export default function AthleteDetailPage() {
     onSuccess: (_, v) => {
       qc.invalidateQueries({ queryKey: ["athletes", "detail", id] });
       qc.invalidateQueries({ queryKey: ["athletes", "list"] });
-      toast.success(v.status === "ACTIVE" ? "Reactivated" : v.status === "SUSPENDED" ? "Suspended" : "Blacklisted");
+      toast.success(v.status === "ACTIVE" ? "Account reactivated" : v.status === "SUSPENDED" ? "Account suspended" : "Account blacklisted");
     },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+    onError: (e) => toast.error("Couldn't change the account status", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
 
   const deleteMutation = useMutation({
@@ -150,23 +167,19 @@ export default function AthleteDetailPage() {
       toast.success("Athlete deleted");
       router.push("/athletes");
     },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Delete failed"),
+    onError: (e) => toast.error("Couldn't delete the athlete", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
-
-  const copy = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success(`${label} copied`);
-  };
 
   if (profileLoading) {
     return <div className="flex h-64 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
   }
   if (!profile) {
     return (
-      <div className="space-y-4">
-        <p className="text-destructive">Couldn't load this athlete.</p>
-        <Button variant="outline" onClick={() => router.push("/athletes")}>Back</Button>
-      </div>
+      <LoadError
+        title="Couldn't load this athlete"
+        backLabel="Back to athletes"
+        onBack={() => router.push("/athletes")}
+      />
     );
   }
 
@@ -232,106 +245,56 @@ export default function AthleteDetailPage() {
 
   const allImages: LightboxImage[] = [...lightboxImages, ...achievementImages, ...resultImages];
 
+  const accountStatus = profile.account?.status ?? "ACTIVE";
+  const pendingAchievements = achievements.filter((a) => a.status === "PENDING").length;
+  const pendingResults = pastResults.filter((r) => r.status === "PENDING").length;
+  const hasAbout = Boolean(profile.bio || profile.instagramUrl || profile.youtubeUrl || profile.facebookUrl);
+
+  const cardBorder = (status: VerificationStatus) =>
+    status === "APPROVED" ? "border-emerald-500/50" : status === "REJECTED" ? "border-red-500/50" : "border-amber-500/40";
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-5">
       <Button variant="ghost" size="sm" onClick={goBackToList} className="-ml-2">
         <ArrowLeft className="h-4 w-4" />Back to athletes
       </Button>
 
-      <div className="flex items-center gap-4">
-        <div className="h-16 w-16 rounded-full overflow-hidden bg-muted shrink-0 border">
-          {profile.photoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={profile.photoUrl} alt={profile.fullName ?? "Athlete"} className="h-full w-full object-cover" />
-          ) : (
-            <div className="h-full w-full flex items-center justify-center text-muted-foreground text-xs">No photo</div>
-          )}
-        </div>
-        <PageHeader
-          title={profile.fullName ?? "Unnamed draft"}
-          description={
-            <div className="flex flex-wrap items-center gap-2 mt-1">
-              {profile.bssaId && (
-                <button
-                  onClick={() => copy(profile.bssaId!, "Member ID")}
-                  className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 font-mono text-xs hover:bg-muted/70"
-                >
-                  {profile.bssaId} <Copy className="h-3 w-3 opacity-60" />
-                </button>
-              )}
-              {profile.fisId && (
-                <button
-                  onClick={() => copy(profile.fisId!, "FIS ID")}
-                  className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 font-mono text-xs hover:bg-muted/70"
-                >
-                  FIS {profile.fisId} <Copy className="h-3 w-3 opacity-60" />
-                </button>
-              )}
-              <AccountStatusBadge status={profile.account?.status} />
-              <SubmissionStatusBadge status={profile.submissionStatus} />
-              <Badge variant={profile.isPublished ? "success" : "secondary"}>{profile.isPublished ? "Published" : "Not published"}</Badge>
-              {profile.aadhaarLayout && (
-                <Badge variant="secondary">
-                  Aadhaar: {profile.aadhaarLayout === "FRONT_BACK" ? "Front + Back" : "Single page"}
-                </Badge>
-              )}
-              <span className="text-sm text-muted-foreground">
-                {profile.disciplines?.length ? profile.disciplines.join(", ") : "—"} · {profile.state ?? "—"}
-              </span>
-              {profile.account?.email && (
-                <button
-                  onClick={() => copy(profile.account!.email, "Email")}
-                  className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 font-mono text-xs hover:bg-muted/70"
-                >
-                  {profile.account.email} <Copy className="h-3 w-3 opacity-60" />
-                </button>
-              )}
-              {profile.account?.mobile && (
-                <button
-                  onClick={() => copy(profile.account!.mobile!, "Mobile number")}
-                  className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 font-mono text-xs hover:bg-muted/70"
-                  title="Contact mobile (optional profile field)"
-                >
-                  {profile.account.mobile} <Copy className="h-3 w-3 opacity-60" />
-                </button>
-              )}
-            </div>
-          }
-        />
-      </div>
-
-      {/* Member-authored bio & social links (read-only for admins) */}
-      {(profile.bio || profile.instagramUrl || profile.youtubeUrl || profile.facebookUrl) && (
-        <section className="space-y-2 rounded-lg border p-4">
-          <h2 className="text-sm font-semibold">About</h2>
-          {profile.bio && <p className="whitespace-pre-line text-sm text-muted-foreground">{profile.bio}</p>}
-          <div className="flex flex-wrap gap-3 text-xs">
-            {profile.instagramUrl && <a href={profile.instagramUrl} target="_blank" rel="noreferrer" className="underline">Instagram</a>}
-            {profile.youtubeUrl && <a href={profile.youtubeUrl} target="_blank" rel="noreferrer" className="underline">YouTube</a>}
-            {profile.facebookUrl && <a href={profile.facebookUrl} target="_blank" rel="noreferrer" className="underline">Facebook</a>}
-          </div>
-        </section>
-      )}
-
-      <ProfileActionsBar
-        status={profile.account?.status ?? "ACTIVE"}
-        onSuspend={() => setModerating("SUSPENDED")}
-        onBlacklist={() => setModerating("BLACKLISTED")}
-        onReactivate={() => setReactivating(true)}
-        onDelete={() => setDeleting(true)}
-        isPending={statusMutation.isPending || deleteMutation.isPending}
+      <ProfileHeaderCard
+        name={profile.fullName ?? "Unnamed draft"}
+        photoUrl={profile.photoUrl}
+        badges={
+          <>
+            <AccountStatusBadge status={profile.account?.status} />
+            <SubmissionStatusBadge status={profile.submissionStatus} />
+            <Badge variant={profile.isPublished ? "success" : "secondary"}>
+              {profile.isPublished ? "Published" : "Not published"}
+            </Badge>
+            {profile.aadhaarLayout && (
+              <Badge variant="outline">
+                Aadhaar: {profile.aadhaarLayout === "FRONT_BACK" ? "Front + Back" : "Single page"}
+              </Badge>
+            )}
+          </>
+        }
+        meta={
+          <>
+            {profile.disciplines?.length ? profile.disciplines.join(", ") : "No discipline"} ·{" "}
+            {profile.state ?? "No state"}
+          </>
+        }
+        chips={
+          <>
+            {profile.bssaId && <CopyChip value={profile.bssaId} label="Member ID" />}
+            {profile.fisId && <CopyChip value={profile.fisId} label="FIS ID" prefix="FIS " />}
+            {profile.account?.email && <CopyChip value={profile.account.email} label="Email" />}
+            {profile.account?.mobile && (
+              <CopyChip value={profile.account.mobile} label="Mobile number" title="Contact mobile (optional profile field)" />
+            )}
+          </>
+        }
       />
 
-      {/* Why the account is suspended/blacklisted, if it is. */}
-      {profile.account && profile.account.status !== "ACTIVE" && profile.account.statusReason && (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-4 text-sm">
-          <span className="font-medium text-red-600">
-            {profile.account.status === "BLACKLISTED" ? "Blacklisted" : "Suspended"}:
-          </span>{" "}
-          {profile.account.statusReason}
-        </div>
-      )}
-
+      {/* ── Why you're here: the review verdict ── */}
       <ApproveRejectBar
         status={profile.submissionStatus}
         canApprove={canApprove}
@@ -350,6 +313,17 @@ export default function AthleteDetailPage() {
         <RejectionReasonBanner reviewNote={profile.reviewNote} reviewedAt={profile.reviewedAt} />
       )}
 
+      {/* Why the account is suspended/blacklisted, if it is. */}
+      {profile.account && accountStatus !== "ACTIVE" && profile.account.statusReason && (
+        <Alert variant="destructive">
+          <ShieldAlert />
+          <div className="space-y-1">
+            <AlertTitle>{accountStatus === "BLACKLISTED" ? "Blacklisted" : "Suspended"}</AlertTitle>
+            <AlertDescription>{profile.account.statusReason}</AlertDescription>
+          </div>
+        </Alert>
+      )}
+
       <DocumentsReviewGrid
         allTypes={docTypesToShow}
         mandatoryTypes={requiredTypes}
@@ -361,79 +335,102 @@ export default function AthleteDetailPage() {
         rejectTemplates={DOCUMENT_REJECTION_TEMPLATES}
       />
 
-      {/* Achievements */}
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Achievements</h2>
+      {/* ── Achievements ── */}
+      <SectionCard
+        title="Achievements"
+        description={
+          achievements.length > 0
+            ? `${achievements.length} submitted by the athlete.`
+            : "Medals and honours the athlete has claimed, with proof."
+        }
+        icon={Award}
+        tone="amber"
+        action={pendingAchievements > 0 ? <Badge variant="warning">{pendingAchievements} pending</Badge> : undefined}
+      >
         {achLoading ? (
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-        ) : achievements.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 rounded-lg border py-10 text-center">
-            <FileX className="h-6 w-6 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">No achievements submitted yet.</p>
+          <div className="flex h-24 items-center justify-center">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
+        ) : achievements.length === 0 ? (
+          <EmptyState
+            icon={Award}
+            title="No achievements submitted"
+            description="Anything the athlete claims will appear here for verification."
+            variant="inline"
+          />
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {achievements.map((a, achIndex) => {
-              const border =
-                a.status === "APPROVED" ? "border-emerald-500/50"
-                : a.status === "REJECTED" ? "border-red-500/50"
-                : "border-border";
-              return (
-                <div key={a.id} className={`overflow-hidden rounded-xl border-2 ${border} bg-card`}>
-                  <button
-                    type="button"
-                    onClick={() => setLightboxIndex(lightboxImages.length + achIndex)}
-                    className="group relative block aspect-[4/3] w-full overflow-hidden bg-muted"
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={a.viewUrl} alt={a.title}
-                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
-                    <span className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/20" />
-                  </button>
-                  <div className="border-t px-3 py-2">
-                    <p className="text-sm font-medium">{a.title} <span className="font-normal text-muted-foreground">— {a.year}</span></p>
-                    {a.description && <p className="mt-0.5 text-xs text-muted-foreground">{a.description}</p>}
-                    <div className="mt-1"><DocumentStatusBadge status={a.status} /></div>
-                    {a.reviewNote && a.status === "REJECTED" && (
-                      <p className="mt-1 text-[11px] text-red-600">Reason: {a.reviewNote}</p>
-                    )}
-                  </div>
-                  {a.status !== "APPROVED" && (
-                    <div className="flex gap-2 px-3 pb-3">
-                      <Button size="sm" className="h-7 flex-1 text-[11px]" disabled={verifyAchMutation.isPending}
-                        onClick={() => verifyAchMutation.mutate({ achId: a.id, status: "APPROVED" })}>
-                        Approve
-                      </Button>
-                      <Button size="sm" variant="outline" className="h-7 flex-1 text-[11px]" disabled={verifyAchMutation.isPending}
-                        onClick={() => setReviewingAch({ item: a, label: a.title })}>
-                        Reject
-                      </Button>
-                    </div>
+            {achievements.map((a, achIndex) => (
+              <div key={a.id} className={cn("overflow-hidden rounded-xl border-2 bg-card", cardBorder(a.status))}>
+                <button
+                  type="button"
+                  onClick={() => setLightboxIndex(lightboxImages.length + achIndex)}
+                  className="group relative block aspect-[4/3] w-full overflow-hidden bg-muted"
+                  title={`Open proof for ${a.title}`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={a.viewUrl} alt={a.title}
+                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                  <span className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/20" />
+                </button>
+                <div className="space-y-1 border-t px-3 py-2">
+                  <p className="text-sm font-medium">
+                    {a.title} <span className="font-normal text-muted-foreground">— {a.year}</span>
+                  </p>
+                  {a.description && <p className="text-xs text-muted-foreground">{a.description}</p>}
+                  <DocumentStatusBadge status={a.status} />
+                  {a.reviewNote && a.status === "REJECTED" && (
+                    <p className="text-[11px] text-red-600 dark:text-red-400">Reason: {a.reviewNote}</p>
                   )}
                 </div>
-              );
-            })}
+                {a.status === "APPROVED" ? (
+                  <p className="flex items-center gap-1.5 border-t px-3 py-2 text-[11px] text-muted-foreground">
+                    <Lock className="h-3 w-3 shrink-0" /> Locked after approval
+                  </p>
+                ) : (
+                  <div className="flex gap-2 px-3 pb-3">
+                    <Button size="sm" className="h-7 flex-1 text-[11px]" disabled={verifyAchMutation.isPending}
+                      onClick={() => verifyAchMutation.mutate({ achId: a.id, status: "APPROVED" })}>
+                      Approve
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-7 flex-1 text-[11px]" disabled={verifyAchMutation.isPending}
+                      onClick={() => setReviewingAch({ item: a, label: a.title })}>
+                      Reject
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         )}
-      </section>
+      </SectionCard>
 
-      {/* Self-declared past results */}
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Past results</h2>
+      {/* ── Self-declared past results ── */}
+      <SectionCard
+        title="Past results"
+        description={
+          pastResults.length > 0
+            ? `${pastResults.length} declared by the athlete.`
+            : "Results the athlete has declared from earlier events."
+        }
+        icon={Medal}
+        tone="green"
+        action={pendingResults > 0 ? <Badge variant="warning">{pendingResults} pending</Badge> : undefined}
+      >
         {resultsLoading ? (
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-        ) : pastResults.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 rounded-lg border py-10 text-center">
-            <FileX className="h-6 w-6 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">No past results submitted yet.</p>
+          <div className="flex h-24 items-center justify-center">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
+        ) : pastResults.length === 0 ? (
+          <EmptyState
+            icon={Medal}
+            title="No past results submitted"
+            description="Declared results appear here for verification."
+            variant="inline"
+          />
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {pastResults.map((r) => {
-              const border =
-                r.status === "APPROVED" ? "border-emerald-500/50"
-                : r.status === "REJECTED" ? "border-red-500/50"
-                : "border-border";
               const proofIndex = resultsWithProof.findIndex((p) => p.id === r.id);
               const meta = [
                 r.rank != null ? `Rank ${r.rank}` : null,
@@ -443,7 +440,7 @@ export default function AthleteDetailPage() {
                 r.location,
               ].filter(Boolean);
               return (
-                <div key={r.id} className={`overflow-hidden rounded-xl border-2 ${border} bg-card`}>
+                <div key={r.id} className={cn("overflow-hidden rounded-xl border-2 bg-card", cardBorder(r.status))}>
                   {r.viewUrl && proofIndex >= 0 && (
                     <button
                       type="button"
@@ -451,6 +448,7 @@ export default function AthleteDetailPage() {
                         setLightboxIndex(lightboxImages.length + achievementImages.length + proofIndex)
                       }
                       className="group relative block aspect-[4/3] w-full overflow-hidden bg-muted"
+                      title={`Open proof for ${r.eventName}`}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={r.viewUrl} alt={`${r.eventName} — proof`}
@@ -458,21 +456,25 @@ export default function AthleteDetailPage() {
                       <span className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/20" />
                     </button>
                   )}
-                  <div className="border-t px-3 py-2">
+                  <div className="space-y-1 border-t px-3 py-2">
                     <p className="text-sm font-medium">
                       {r.eventName} <span className="font-normal text-muted-foreground">— {r.year}</span>
                     </p>
-                    {meta.length > 0 && (
-                      <p className="mt-0.5 text-xs text-muted-foreground">{meta.join(" · ")}</p>
+                    {meta.length > 0 && <p className="text-xs text-muted-foreground">{meta.join(" · ")}</p>}
+                    {r.description && <p className="text-xs text-muted-foreground">{r.description}</p>}
+                    {!r.viewUrl && (
+                      <p className="text-[11px] text-amber-600 dark:text-amber-400">No proof uploaded</p>
                     )}
-                    {r.description && <p className="mt-0.5 text-xs text-muted-foreground">{r.description}</p>}
-                    {!r.viewUrl && <p className="mt-0.5 text-[11px] text-amber-600">No proof uploaded</p>}
-                    <div className="mt-1"><DocumentStatusBadge status={r.status} /></div>
+                    <DocumentStatusBadge status={r.status} />
                     {r.reviewNote && r.status === "REJECTED" && (
-                      <p className="mt-1 text-[11px] text-red-600">Reason: {r.reviewNote}</p>
+                      <p className="text-[11px] text-red-600 dark:text-red-400">Reason: {r.reviewNote}</p>
                     )}
                   </div>
-                  {r.status !== "APPROVED" && (
+                  {r.status === "APPROVED" ? (
+                    <p className="flex items-center gap-1.5 border-t px-3 py-2 text-[11px] text-muted-foreground">
+                      <Lock className="h-3 w-3 shrink-0" /> Locked after approval
+                    </p>
+                  ) : (
                     <div className="flex gap-2 px-3 pb-3">
                       <Button size="sm" className="h-7 flex-1 text-[11px]" disabled={verifyResultMutation.isPending}
                         onClick={() => verifyResultMutation.mutate({ resultId: r.id, status: "APPROVED" })}>
@@ -489,9 +491,47 @@ export default function AthleteDetailPage() {
             })}
           </div>
         )}
-      </section>
+      </SectionCard>
 
       <MemberMediaGallery items={media} />
+
+      {/* Member-authored bio & social links (read-only for admins) */}
+      {hasAbout && (
+        <SectionCard
+          title="About"
+          description="Written by the member for their public profile."
+          icon={UserRound}
+          tone="slate"
+          collapsible
+          defaultOpen={false}
+        >
+          {profile.bio && <p className="whitespace-pre-line text-sm text-muted-foreground">{profile.bio}</p>}
+          <div className="flex flex-wrap gap-3 text-xs">
+            {profile.instagramUrl && <a href={profile.instagramUrl} target="_blank" rel="noreferrer" className="underline">Instagram</a>}
+            {profile.youtubeUrl && <a href={profile.youtubeUrl} target="_blank" rel="noreferrer" className="underline">YouTube</a>}
+            {profile.facebookUrl && <a href={profile.facebookUrl} target="_blank" rel="noreferrer" className="underline">Facebook</a>}
+          </div>
+        </SectionCard>
+      )}
+
+      {/* Moderation lives at the bottom, folded unless the account isn't active. */}
+      <SectionCard
+        title="Account actions"
+        description="Suspending or blacklisting stops the member logging in. Deleting removes everything, permanently."
+        icon={ShieldAlert}
+        tone="rose"
+        collapsible
+        defaultOpen={accountStatus !== "ACTIVE"}
+      >
+        <ProfileActionsBar
+          status={accountStatus}
+          onSuspend={() => setModerating("SUSPENDED")}
+          onBlacklist={() => setModerating("BLACKLISTED")}
+          onReactivate={() => setReactivating(true)}
+          onDelete={() => setDeleting(true)}
+          isPending={statusMutation.isPending || deleteMutation.isPending}
+        />
+      </SectionCard>
 
       <DocumentReviewDialog
         open={!!reviewingResult}

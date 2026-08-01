@@ -24,6 +24,23 @@ export async function navigateTo(page: Page, label: string) {
   await page.waitForTimeout(500);
 }
 
+/**
+ * Pick a date in the nth DateTimePicker on screen. The picker is a popover with
+ * a day grid, not a native input — clicking a day and confirming is the only way
+ * to set it.
+ */
+export async function pickDateTime(page: Page, index = 0, day = 15) {
+  await page.locator('button:has-text("Pick date & time")').nth(index).click();
+  const popover = page.locator('div.absolute:has-text("Time")').first();
+  await popover.getByRole("button", { name: String(day), exact: true }).click();
+  await popover.getByRole("button", { name: "Done" }).click();
+}
+
+/** Switch to a tab inside a tabbed form (event form, About content, …). */
+export async function openTab(page: Page, name: string) {
+  await page.getByRole("tab", { name }).click();
+}
+
 /** Wait for a toast message to appear. */
 export async function expectToast(page: Page, text: string) {
   const toast = page.locator(`[data-sonner-toast] >> text="${text}"`).first();

@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Mail } from "lucide-react";
+import { Inbox, Mail } from "lucide-react";
 import { format } from "date-fns";
 
 import { enquiriesService } from "@/lib/services/enquiries";
@@ -45,7 +45,11 @@ export default function EnquiriesListPage() {
         data={data?.items ?? []}
         isLoading={isLoading}
         isError={isError}
-        emptyMessage="No enquiries yet."
+        empty={{
+          icon: Inbox,
+          title: "No enquiries yet",
+          description: "Messages from the public contact form land here.",
+        }}
         pagination={data ? { page: data.meta.page, limit: data.meta.limit, total: data.meta.total, totalPages: data.meta.totalPages, onPageChange: setPage } : undefined}
       />
     </div>

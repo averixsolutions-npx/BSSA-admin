@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { MoreHorizontal, Pencil, Trash2, Plus, Loader2 } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash2, Plus, Loader2, Users } from "lucide-react";
 import { toast } from "sonner";
 
 import { committeeService } from "@/lib/services/committee";
@@ -12,6 +12,7 @@ import type { CommitteeMember } from "@/lib/types";
 import { ApiCallError } from "@/lib/api-client";
 import { PageHeader } from "@/components/page-header";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { ListShell } from "@/components/list-shell";
 import { ReorderableList } from "@/components/reorderable-list";
 import { FormField } from "@/components/form-field";
 import { FileDropzone } from "@/components/file-dropzone";
@@ -44,35 +45,44 @@ export default function CommitteeListPage() {
   const reorderM = useMutation({
     mutationFn: (order: { id: string; sortOrder: number }[]) => committeeService.reorder(order),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["committee"] }); },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Could not reorder"),
+    onError: (e) => toast.error("Couldn't save the new order", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
   const createM = useMutation({
     mutationFn: (v: MemberFormValues) => committeeService.create({ name: v.name, role: v.role, bio: v.bio || undefined, photoUrl: v.photoUrl ?? undefined }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["committee"] }); toast.success("Member added"); setCreating(false); },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+    onError: (e) => toast.error("Couldn't add the member", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
   const updateM = useMutation({
     mutationFn: ({ id, v }: { id: string; v: MemberFormValues }) => committeeService.update(id, { name: v.name, role: v.role, bio: v.bio || undefined, photoUrl: v.photoUrl ?? undefined }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["committee"] }); toast.success("Saved"); setEditing(null); },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["committee"] }); toast.success("Member saved"); setEditing(null); },
+    onError: (e) => toast.error("Couldn't save the member", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
   const deleteM = useMutation({
     mutationFn: (id: string) => committeeService.remove(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["committee"] }); toast.success("Deleted"); setPendingDelete(null); },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["committee"] }); toast.success("Member deleted"); setPendingDelete(null); },
+    onError: (e) => toast.error("Couldn't delete the member", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
 
   return (
     <div className="space-y-6">
       <PageHeader title="Committee" description="Leadership profiles. Drag to reorder." action={<Button onClick={() => setCreating(true)}><Plus className="h-4 w-4" />New member</Button>} />
 
-      {isLoading ? (
-        <div className="flex h-40 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-      ) : isError ? (
-        <p className="text-destructive">Couldn't load committee members.</p>
-      ) : items.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-8 text-center">No committee members yet.</p>
-      ) : (
+      <ListShell
+        isLoading={isLoading}
+        isError={isError}
+        errorTitle="Couldn't load committee members"
+        isEmpty={items.length === 0}
+        empty={{
+          icon: Users,
+          title: "No committee members yet",
+          description: "Leadership profiles shown on the public About page.",
+          action: (
+            <Button size="sm" onClick={() => setCreating(true)}>
+              <Plus className="h-4 w-4" />Add the first member
+            </Button>
+          ),
+        }}
+      >
         <ReorderableList
           items={items}
           onReorder={(order) => reorderM.mutate(order)}
@@ -100,7 +110,7 @@ export default function CommitteeListPage() {
             </div>
           )}
         />
-      )}
+      </ListShell>
 
       {creating && (
         <MemberDialog

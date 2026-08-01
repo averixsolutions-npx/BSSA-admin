@@ -5,6 +5,8 @@ import {
   expectToast,
   clickRowAction,
   confirmDialog,
+  openTab,
+  pickDateTime,
 } from "./helpers";
 
 // ─── All tests run sequentially in one browser context ──
@@ -123,14 +125,28 @@ test.describe.serial("Admin Panel E2E", () => {
     await page.click("text=New event");
     await expect(page).toHaveURL(/\/events\/new/);
 
+    // The form is tabbed: identity on Details, dates on Schedule.
     eventTitle = `E2E Championship ${Date.now()}`;
     await page.fill('input[name="title"]', eventTitle);
     await page.fill('input[name="venue"]', "Auli");
-    await page.fill('input[name="startDate"]', "2025-02-01T09:00");
-    await page.fill('input[name="endDate"]', "2025-02-05T18:00");
+
+    await openTab(page, "Schedule");
+    await pickDateTime(page, 0, 15);
+    await pickDateTime(page, 1, 20);
 
     await page.click("text=Create event");
-    await expectToast(page, "Saved");
+    await expectToast(page, "Event created as draft");
+  });
+
+  test("3.1b — Validation errors surface on their own tab", async ({ page }) => {
+    await adminLogin(page);
+    await navigateTo(page, "Events");
+    await page.click("text=New event");
+
+    // Submit empty: the first tab with an error is selected and dotted.
+    await page.click("text=Create event");
+    await expectToast(page, "Check the highlighted fields");
+    await expect(page.getByRole("tab", { name: /Details/ })).toHaveAttribute("data-state", "active");
   });
 
   test("3.2 — Add results to the event", async ({ page }) => {
@@ -140,13 +156,16 @@ test.describe.serial("Admin Panel E2E", () => {
     await page.click(`text="${eventTitle}"`);
     await expect(page).toHaveURL(/\/events\/[a-z0-9]/);
 
+    // Creation lives in a dialog, opened from the Results card header.
     await page.click("text=Add result");
+    const dialog = page.locator('[role="dialog"]');
+    await expect(dialog).toBeVisible();
 
-    await page.fill('input[placeholder="Rank"]', "1");
-    await page.fill('input[placeholder*="Athlete"]', "Test Runner A");
-    await page.fill('input[placeholder="State"]', "HP");
-    await page.fill('input[placeholder*="Result"]', "01:23.45");
-    await page.click("form >> text=Add");
+    await dialog.locator('input[placeholder="Rank"]').fill("1");
+    await dialog.locator('input[placeholder*="Athlete"]').fill("Test Runner A");
+    await dialog.locator('input[placeholder="State"]').fill("HP");
+    await dialog.locator('input[placeholder*="Result"]').fill("01:23.45");
+    await dialog.locator('button[type="submit"]').click();
     await expectToast(page, "Result added");
 
     await expect(page.locator("td >> text=Test Runner A")).toBeVisible();
@@ -157,7 +176,7 @@ test.describe.serial("Admin Panel E2E", () => {
     await navigateTo(page, "Events");
     await clickRowAction(page, eventTitle, "Delete");
     await confirmDialog(page, "Delete");
-    await expectToast(page, "Deleted");
+    await expectToast(page, "Event deleted");
   });
 
   // ════════════════════════════════════════════════════
@@ -182,8 +201,8 @@ test.describe.serial("Admin Panel E2E", () => {
     await adminLogin(page);
     await navigateTo(page, "About content");
 
-    await page.click("button >> text=Vision");
-    await page.click("button >> text=Mission");
+    await page.getByRole("tab", { name: "Vision" }).click();
+    await page.getByRole("tab", { name: "Mission" }).click();
 
     const editor = page.locator(".ProseMirror");
     await expect(editor).toContainText("mission");
@@ -236,6 +255,28 @@ test.describe.serial("Admin Panel E2E", () => {
   });
 
   // ════════════════════════════════════════════════════
+  // Phase 8b — Dialog input focus
+  // ════════════════════════════════════════════════════
+
+  test("8.2 — A dialog field accepts a whole sentence", async ({ page }) => {
+    // Guards the focus bug: a dialog whose mount effect depends on a callback
+    // prop re-runs on every keystroke and only accepts one character per click.
+    await adminLogin(page);
+    await navigateTo(page, "Committee");
+    await page.click("text=New member");
+
+    const dialog = page.locator('[role="dialog"]');
+    await expect(dialog).toBeVisible();
+
+    const sentence = "Priya Sharma of the alpine sub-committee";
+    const nameInput = dialog.locator("input").first();
+    await nameInput.pressSequentially(sentence);
+    await expect(nameInput).toHaveValue(sentence);
+
+    await page.keyboard.press("Escape");
+  });
+
+  // ════════════════════════════════════════════════════
   // Phase 9 — Auth boundaries
   // ════════════════════════════════════════════════════
 
@@ -248,7 +289,7 @@ test.describe.serial("Admin Panel E2E", () => {
   test("9.2 — Logout clears session", async ({ page }) => {
     await adminLogin(page);
 
-    await page.click('[class*="rounded-full"]');
+    await page.getByRole("button", { name: "Account menu" }).click();
     await page.click("text=Log out");
     await expectToast(page, "Logged out");
     await expect(page).toHaveURL(/\/login/);

@@ -10,6 +10,7 @@ import { ApiCallError } from "@/lib/api-client";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { LoadError } from "@/components/load-error";
 import { Button } from "@/components/ui/button";
 import { AnnouncementForm, type AnnouncementFormValues } from "../announcement-form";
 
@@ -30,24 +31,23 @@ export default function EditAnnouncementPage() {
   const updateM = useMutation({
     mutationFn: (v: AnnouncementFormValues) =>
       announcementsService.update(id, { text: v.text, href: v.href || undefined }),
-    onSuccess: () => { invalidate(); toast.success("Saved"); },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+    onSuccess: () => { invalidate(); toast.success("Announcement saved"); },
+    onError: (e) => toast.error("Couldn't save the announcement", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
   const toggleM = useMutation({
     mutationFn: (isActive: boolean) => announcementsService.update(id, { isActive }),
-    onSuccess: () => { invalidate(); toast.success("Updated"); },
+    onSuccess: (_, isActive) => { invalidate(); toast.success(isActive ? "Announcement shown" : "Announcement hidden"); },
+    onError: (e) => toast.error("Couldn't change visibility", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
   const deleteM = useMutation({
     mutationFn: () => announcementsService.remove(id),
-    onSuccess: () => { invalidate(); toast.success("Deleted"); router.push("/announcements"); },
+    onSuccess: () => { invalidate(); toast.success("Announcement deleted"); router.push("/announcements"); },
+    onError: (e) => toast.error("Couldn't delete the announcement", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
 
   if (isLoading) return <div className="flex h-64 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
   if (isError || !item) return (
-    <div className="space-y-4">
-      <p className="text-destructive">Couldn't load this announcement.</p>
-      <Button variant="outline" onClick={() => router.push("/announcements")}>Back</Button>
-    </div>
+    <LoadError title="Couldn't load this announcement" backLabel="Back to announcements" onBack={() => router.push("/announcements")} />
   );
 
   return (

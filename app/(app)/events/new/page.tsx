@@ -29,11 +29,13 @@ export default function NewEventPage() {
       }),
     onSuccess: (event) => {
       qc.invalidateQueries({ queryKey: ["events"] });
-      toast.success("Saved");
+      toast.success("Event created as draft");
       router.push(`/events/${event.id}`);
     },
     onError: (err) => {
-      toast.error(err instanceof ApiCallError ? err.message : "Could not create event");
+      toast.error("Couldn't create the event", {
+        description: err instanceof ApiCallError ? err.message : undefined,
+      });
     },
   });
 

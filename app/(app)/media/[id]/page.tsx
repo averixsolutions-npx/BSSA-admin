@@ -10,6 +10,7 @@ import { ApiCallError } from "@/lib/api-client";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { LoadError } from "@/components/load-error";
 import { Button } from "@/components/ui/button";
 import { MediaForm, type MediaFormValues } from "../media-form";
 
@@ -36,19 +37,28 @@ export default function EditMediaPage() {
         duration: v.duration || undefined,
         thumbnailUrl: v.thumbnailUrl ?? undefined,
       }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["media"] }); toast.success("Saved"); },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["media"] }); toast.success("Media saved"); },
+    onError: (e) => toast.error("Couldn't save the media item", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
-  const publishM = useMutation({ mutationFn: () => mediaService.publish(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ["media"] }); toast.success("Published"); } });
-  const unpublishM = useMutation({ mutationFn: () => mediaService.unpublish(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ["media"] }); toast.success("Unpublished"); } });
-  const deleteM = useMutation({ mutationFn: () => mediaService.remove(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ["media"] }); toast.success("Deleted"); router.push("/media"); } });
+  const publishM = useMutation({
+    mutationFn: () => mediaService.publish(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["media"] }); toast.success("Media published"); },
+    onError: (e) => toast.error("Couldn't publish", { description: e instanceof ApiCallError ? e.message : undefined }),
+  });
+  const unpublishM = useMutation({
+    mutationFn: () => mediaService.unpublish(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["media"] }); toast.success("Media unpublished"); },
+    onError: (e) => toast.error("Couldn't unpublish", { description: e instanceof ApiCallError ? e.message : undefined }),
+  });
+  const deleteM = useMutation({
+    mutationFn: () => mediaService.remove(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["media"] }); toast.success("Media deleted"); router.push("/media"); },
+    onError: (e) => toast.error("Couldn't delete the media item", { description: e instanceof ApiCallError ? e.message : undefined }),
+  });
 
   if (isLoading) return <div className="flex h-64 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
   if (isError || !item) return (
-    <div className="space-y-4">
-      <p className="text-destructive">Couldn't load this media item.</p>
-      <Button variant="outline" onClick={() => router.push("/media")}>Back</Button>
-    </div>
+    <LoadError title="Couldn't load this media item" backLabel="Back to media" onBack={() => router.push("/media")} />
   );
 
   const pub = item.status === "PUBLISHED";

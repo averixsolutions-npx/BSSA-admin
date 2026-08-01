@@ -2,10 +2,11 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2 } from "lucide-react";
+import { Loader2, Megaphone } from "lucide-react";
 
 import type { Announcement } from "@/lib/types";
 import { FormField } from "@/components/form-field";
+import { SectionCard } from "@/components/section-card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -26,7 +27,7 @@ interface Props {
 }
 
 export function AnnouncementForm({ initialValues, onSubmit, onCancel, submitting, submitLabel = "Save" }: Props) {
-  const { register, handleSubmit, formState: { errors } } = useForm<AnnouncementFormValues>({
+  const { register, handleSubmit, watch, formState: { errors } } = useForm<AnnouncementFormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       text: initialValues?.text ?? "",
@@ -34,17 +35,31 @@ export function AnnouncementForm({ initialValues, onSubmit, onCancel, submitting
     },
   });
 
+  const text = watch("text") ?? "";
+
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 max-w-2xl">
-      <FormField label="Text" required error={errors.text} hint="Shown in the scrolling ticker.">
-        <Textarea {...register("text")} rows={2} placeholder="e.g. Registrations are now open — sign up today" />
-      </FormField>
+    <form onSubmit={handleSubmit(onSubmit)} className="max-w-2xl space-y-5">
+      <SectionCard
+        title="Ticker item"
+        description="One line that scrolls across the top of the public site."
+        icon={Megaphone}
+        tone="blue"
+      >
+        <FormField
+          label="Text"
+          required
+          error={errors.text}
+          hint={`${text.length}/280 characters`}
+        >
+          <Textarea {...register("text")} rows={2} placeholder="e.g. Registrations are now open — sign up today" />
+        </FormField>
 
-      <FormField label="Link" error={errors.href} hint="Optional. Where the ticker item points, e.g. /register">
-        <Input {...register("href")} />
-      </FormField>
+        <FormField label="Link" error={errors.href} hint="Optional. Where the ticker item points, e.g. /register">
+          <Input {...register("href")} />
+        </FormField>
+      </SectionCard>
 
-      <div className="flex items-center gap-2 pt-4 border-t">
+      <div className="sticky bottom-0 z-10 flex items-center gap-2 rounded-lg border bg-card/95 p-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/80">
         <Button type="submit" disabled={submitting}>
           {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {submitLabel}

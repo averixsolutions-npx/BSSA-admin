@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { MoreHorizontal, Pencil, Trash2, Eye, EyeOff, Plus } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash2, Eye, EyeOff, Plus, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 
@@ -31,12 +31,20 @@ export default function EventsListPage() {
     queryFn: () => eventsService.list({ page, limit: 20, status, state }),
   });
 
-  const publishM = useMutation({ mutationFn: eventsService.publish, onSuccess: () => { qc.invalidateQueries({ queryKey: ["events"] }); toast.success("Published"); } });
-  const unpublishM = useMutation({ mutationFn: eventsService.unpublish, onSuccess: () => { qc.invalidateQueries({ queryKey: ["events"] }); toast.success("Unpublished"); } });
+  const publishM = useMutation({
+    mutationFn: eventsService.publish,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["events"] }); toast.success("Event published"); },
+    onError: (e) => toast.error("Couldn't publish", { description: e instanceof ApiCallError ? e.message : undefined }),
+  });
+  const unpublishM = useMutation({
+    mutationFn: eventsService.unpublish,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["events"] }); toast.success("Event unpublished"); },
+    onError: (e) => toast.error("Couldn't unpublish", { description: e instanceof ApiCallError ? e.message : undefined }),
+  });
   const deleteM = useMutation({
     mutationFn: eventsService.remove,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["events"] }); toast.success("Deleted"); setPendingDelete(null); },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["events"] }); toast.success("Event deleted"); setPendingDelete(null); },
+    onError: (e) => toast.error("Couldn't delete the event", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
 
   const columns: ColumnDef<Event>[] = [
@@ -68,7 +76,16 @@ export default function EventsListPage() {
     <div className="space-y-6">
       <PageHeader title="Events" description="Competitions and calendar entries." action={<Button onClick={() => router.push("/events/new")}><Plus className="h-4 w-4" />New event</Button>} />
       <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} isError={isError}
-        emptyMessage="No events yet."
+        empty={{
+          icon: CalendarDays,
+          title: status || state ? "No events match these filters" : "No events yet",
+          description: status || state
+            ? "Clear the filters to see everything in the calendar."
+            : "Competitions and calendar entries you create appear here.",
+          action: !status && !state
+            ? <Button size="sm" onClick={() => router.push("/events/new")}><Plus className="h-4 w-4" />Create the first event</Button>
+            : undefined,
+        }}
         toolbar={<>
           <Select value={status || "all"} onValueChange={(v) => { setStatus(v === "all" ? "" : v as ContentStatus); setPage(1); }}>
             <SelectTrigger className="w-[140px]"><SelectValue placeholder="Status" /></SelectTrigger>

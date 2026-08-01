@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, ArrowLeft, Copy } from "lucide-react";
+import { Loader2, ArrowLeft, Building2, Eye, Info, ShieldAlert } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -10,18 +10,22 @@ import { associationsAdminService } from "@/lib/services/associations-admin";
 import { associationDocumentsService } from "@/lib/services/association-documents";
 import { memberMediaService } from "@/lib/services/member-media";
 import { ApiCallError } from "@/lib/api-client";
-import { PageHeader } from "@/components/page-header";
 import { AccountStatusBadge } from "@/components/account-status-badge";
 import { SubmissionStatusBadge } from "@/components/submission-status-badge";
 import { ApproveRejectBar } from "@/components/approve-reject-bar";
+import { CopyChip } from "@/components/copy-chip";
+import { LoadError } from "@/components/load-error";
 import { PendingChangesBanner } from "@/components/pending-changes-banner";
+import { ProfileHeaderCard } from "@/components/profile-header-card";
 import { RejectionReasonBanner } from "@/components/rejection-reason-banner";
+import { SectionCard } from "@/components/section-card";
 import { AssociationDocumentsGrid } from "@/components/association-documents-grid";
 import { ProfileActionsBar } from "@/components/profile-actions-bar";
 import { ModerationDialog } from "@/components/moderation-dialog";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ImageLightbox, type LightboxImage } from "@/components/image-lightbox";
 import { MemberMediaGallery } from "@/components/member-media-gallery";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
@@ -66,9 +70,9 @@ export default function AssociationDetailPage() {
     mutationFn: (isPublished: boolean) => associationsAdminService.setPublished(id, isPublished),
     onSuccess: (_, isPublished) => {
       qc.invalidateQueries({ queryKey: ["associations"] });
-      toast.success(isPublished ? "Published" : "Unpublished");
+      toast.success(isPublished ? "Now visible in the public directory" : "Hidden from the public directory");
     },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+    onError: (e) => toast.error("Couldn't change visibility", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
 
   const statusMutation = useMutation({
@@ -76,9 +80,9 @@ export default function AssociationDetailPage() {
       associationsAdminService.setStatus(id, status, reason),
     onSuccess: (_, v) => {
       qc.invalidateQueries({ queryKey: ["associations"] });
-      toast.success(v.status === "ACTIVE" ? "Reactivated" : v.status === "SUSPENDED" ? "Suspended" : "Blacklisted");
+      toast.success(v.status === "ACTIVE" ? "Account reactivated" : v.status === "SUSPENDED" ? "Account suspended" : "Account blacklisted");
     },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+    onError: (e) => toast.error("Couldn't change the account status", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
 
   const deleteMutation = useMutation({
@@ -89,7 +93,7 @@ export default function AssociationDetailPage() {
       toast.success("Association deleted");
       router.push("/associations");
     },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Delete failed"),
+    onError: (e) => toast.error("Couldn't delete the association", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
 
   const approveProfileMutation = useMutation({
@@ -100,7 +104,7 @@ export default function AssociationDetailPage() {
       qc.invalidateQueries({ queryKey: ["queue-counts", "associations"] });
       toast.success("Association approved");
     },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+    onError: (e) => toast.error("Couldn't approve the association", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
 
   const rejectProfileMutation = useMutation({
@@ -111,23 +115,19 @@ export default function AssociationDetailPage() {
       qc.invalidateQueries({ queryKey: ["queue-counts", "associations"] });
       toast.success("Association rejected — user has been notified");
     },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+    onError: (e) => toast.error("Couldn't reject the association", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
-
-  const copy = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success(`${label} copied`);
-  };
 
   if (isLoading) {
     return <div className="flex h-64 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
   }
   if (!assoc) {
     return (
-      <div className="space-y-4">
-        <p className="text-destructive">Couldn&apos;t load this association.</p>
-        <Button variant="outline" onClick={() => router.push("/associations")}>Back</Button>
-      </div>
+      <LoadError
+        title="Couldn't load this association"
+        backLabel="Back to associations"
+        onBack={() => router.push("/associations")}
+      />
     );
   }
 
@@ -168,75 +168,41 @@ export default function AssociationDetailPage() {
     { label: "Address", value: assoc.address },
   ];
 
+  const hasAbout = Boolean(assoc.bio || assoc.instagramUrl || assoc.youtubeUrl || assoc.facebookUrl);
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-5">
       <Button variant="ghost" size="sm" onClick={goBackToList} className="-ml-2">
         <ArrowLeft className="h-4 w-4" /> Back to associations
       </Button>
 
-      {/* Logo (only if uploaded) */}
-      {assoc.logoUrl && (
-        <button
-          type="button"
-          onClick={() => setLightboxIndex(0)}
-          className="relative h-20 w-20 overflow-hidden rounded-lg border bg-muted"
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={assoc.logoUrl} alt="" className="h-full w-full object-cover" />
-        </button>
-      )}
-
-      <PageHeader
-        title={assoc.name ?? "Unnamed draft"}
-        description={
-          <div className="mt-1 flex flex-wrap items-center gap-2">
-            {assoc.bssaId && (
-              <button onClick={() => copy(assoc.bssaId!, "Member ID")}
-                className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 font-mono text-xs hover:bg-muted/70">
-                {assoc.bssaId} <Copy className="h-3 w-3 opacity-60" />
-              </button>
-            )}
+      <ProfileHeaderCard
+        name={assoc.name ?? "Unnamed draft"}
+        photoUrl={assoc.logoUrl}
+        photoShape="square"
+        onPhotoClick={() => setLightboxIndex(0)}
+        badges={
+          <>
             <AccountStatusBadge status={assoc.account?.status} />
             <SubmissionStatusBadge status={assoc.submissionStatus} />
             <Badge variant={assoc.isPublished ? "success" : "secondary"}>
               {assoc.isPublished ? "Published" : "Not published"}
             </Badge>
-            <span className="text-sm text-muted-foreground">{assoc.state ?? "—"}</span>
-          </div>
+          </>
+        }
+        meta={
+          <>
+            {assoc.state ?? "No state"} · Registered {format(new Date(assoc.createdAt), "d MMM yyyy")}
+          </>
+        }
+        chips={
+          <>
+            {assoc.bssaId && <CopyChip value={assoc.bssaId} label="Member ID" />}
+            {assoc.account?.email && <CopyChip value={assoc.account.email} label="Email" />}
+            {assoc.account?.mobile && <CopyChip value={assoc.account.mobile} label="Mobile number" />}
+          </>
         }
       />
-
-      {/* Member-authored bio & social links (read-only for admins) */}
-      {(assoc.bio || assoc.instagramUrl || assoc.youtubeUrl || assoc.facebookUrl) && (
-        <section className="space-y-2 rounded-lg border p-4">
-          <h2 className="text-sm font-semibold">About</h2>
-          {assoc.bio && <p className="whitespace-pre-line text-sm text-muted-foreground">{assoc.bio}</p>}
-          <div className="flex flex-wrap gap-3 text-xs">
-            {assoc.instagramUrl && <a href={assoc.instagramUrl} target="_blank" rel="noreferrer" className="underline">Instagram</a>}
-            {assoc.youtubeUrl && <a href={assoc.youtubeUrl} target="_blank" rel="noreferrer" className="underline">YouTube</a>}
-            {assoc.facebookUrl && <a href={assoc.facebookUrl} target="_blank" rel="noreferrer" className="underline">Facebook</a>}
-          </div>
-        </section>
-      )}
-
-      <ProfileActionsBar
-        status={status}
-        onSuspend={() => setModerating("SUSPENDED")}
-        onBlacklist={() => setModerating("BLACKLISTED")}
-        onReactivate={() => setReactivating(true)}
-        onDelete={() => setDeleting(true)}
-        isPending={statusMutation.isPending || deleteMutation.isPending}
-      />
-
-      {/* Suspension reason banner */}
-      {status !== "ACTIVE" && assoc.account?.statusReason && (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-4 text-sm">
-          <span className="font-medium text-red-600">
-            {status === "BLACKLISTED" ? "Blacklisted" : "Suspended"}:
-          </span>{" "}
-          {assoc.account.statusReason}
-        </div>
-      )}
 
       <ApproveRejectBar
         status={assoc.submissionStatus}
@@ -248,7 +214,15 @@ export default function AssociationDetailPage() {
         isPending={approveProfileMutation.isPending || rejectProfileMutation.isPending}
       />
 
-      {softWarn && <p className="text-xs text-amber-700 dark:text-amber-400">{softWarn}</p>}
+      {softWarn && (
+        <Alert variant="warning">
+          <Info />
+          <div className="space-y-1">
+            <AlertTitle>Nothing uploaded to check</AlertTitle>
+            <AlertDescription>{softWarn}</AlertDescription>
+          </div>
+        </Alert>
+      )}
 
       {assoc.submissionStatus === "RESUBMITTED" && (
         <PendingChangesBanner rows={diffRows} snapshotAt={assoc.approvedSnapshot?.snapshotAt ?? null} />
@@ -258,10 +232,24 @@ export default function AssociationDetailPage() {
         <RejectionReasonBanner reviewNote={assoc.reviewNote} reviewedAt={assoc.reviewedAt} />
       )}
 
-      {/* Details card */}
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Association details</h2>
-        <div className="grid grid-cols-1 gap-x-8 gap-y-4 rounded-lg border p-5 sm:grid-cols-2">
+      {/* Suspension reason */}
+      {status !== "ACTIVE" && assoc.account?.statusReason && (
+        <Alert variant="destructive">
+          <ShieldAlert />
+          <div className="space-y-1">
+            <AlertTitle>{status === "BLACKLISTED" ? "Blacklisted" : "Suspended"}</AlertTitle>
+            <AlertDescription>{assoc.account.statusReason}</AlertDescription>
+          </div>
+        </Alert>
+      )}
+
+      <SectionCard
+        title="Association details"
+        description="Submitted by the association — read-only here."
+        icon={Building2}
+        tone="blue"
+      >
+        <div className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
           {details.map((d) => (
             <div key={d.label}>
               <p className="text-xs uppercase tracking-wide text-muted-foreground">{d.label}</p>
@@ -269,39 +257,73 @@ export default function AssociationDetailPage() {
             </div>
           ))}
         </div>
-      </section>
+      </SectionCard>
 
       <AssociationDocumentsGrid associationId={id} />
 
       <MemberMediaGallery items={media} />
 
-      {/* Actions */}
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Actions</h2>
-        <div className="flex flex-wrap items-center gap-3 rounded-lg border p-5">
-          <div className="mr-auto">
-            <p className="text-sm font-medium">Public visibility</p>
-            <p className="text-xs text-muted-foreground">
-              {assoc.isPublished ? "Visible in the public directory." : "Hidden from the public directory."}
-              {" "}Toggle to temporarily hide an approved profile. Doesn't change review status.
-            </p>
+      {hasAbout && (
+        <SectionCard
+          title="About"
+          description="Written by the association for their public profile."
+          icon={Building2}
+          tone="slate"
+          collapsible
+          defaultOpen={false}
+        >
+          {assoc.bio && <p className="whitespace-pre-line text-sm text-muted-foreground">{assoc.bio}</p>}
+          <div className="flex flex-wrap gap-3 text-xs">
+            {assoc.instagramUrl && <a href={assoc.instagramUrl} target="_blank" rel="noreferrer" className="underline">Instagram</a>}
+            {assoc.youtubeUrl && <a href={assoc.youtubeUrl} target="_blank" rel="noreferrer" className="underline">YouTube</a>}
+            {assoc.facebookUrl && <a href={assoc.facebookUrl} target="_blank" rel="noreferrer" className="underline">Facebook</a>}
           </div>
+        </SectionCard>
+      )}
+
+      <SectionCard
+        title="Public visibility"
+        description={
+          assoc.isPublished
+            ? "Visible in the public directory. Toggle off to hide an approved profile without changing its review status."
+            : "Hidden from the public directory. Toggle on once the profile is ready to show."
+        }
+        icon={Eye}
+        tone="amber"
+        action={
           <Button
             variant={assoc.isPublished ? "outline" : "default"}
+            size="sm"
             onClick={() => publishMutation.mutate(!assoc.isPublished)}
             disabled={publishMutation.isPending}
           >
+            {publishMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
             {assoc.isPublished ? "Unpublish" : "Publish"}
           </Button>
-        </div>
-      </section>
+        }
+      >
+        <p className="text-sm text-muted-foreground">
+          Publishing only controls the public directory listing — it never changes the review verdict.
+        </p>
+      </SectionCard>
 
-      {/* Registered date footer */}
-      <p className="text-xs text-muted-foreground">
-        Registered {format(new Date(assoc.createdAt), "d MMM yyyy")}
-        {assoc.account?.email && <> · {assoc.account.email}</>}
-        {assoc.account?.mobile && <> · {assoc.account.mobile}</>}
-      </p>
+      <SectionCard
+        title="Account actions"
+        description="Suspending or blacklisting stops the association logging in. Deleting removes everything, permanently."
+        icon={ShieldAlert}
+        tone="rose"
+        collapsible
+        defaultOpen={status !== "ACTIVE"}
+      >
+        <ProfileActionsBar
+          status={status}
+          onSuspend={() => setModerating("SUSPENDED")}
+          onBlacklist={() => setModerating("BLACKLISTED")}
+          onReactivate={() => setReactivating(true)}
+          onDelete={() => setDeleting(true)}
+          isPending={statusMutation.isPending || deleteMutation.isPending}
+        />
+      </SectionCard>
 
       <ModerationDialog
         open={!!moderating}

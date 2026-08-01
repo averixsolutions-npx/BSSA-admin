@@ -1,6 +1,6 @@
 "use client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { Loader2, Users } from "lucide-react";
 import { toast } from "sonner";
 
 import { eventsService } from "@/lib/services/events";
@@ -12,6 +12,8 @@ import type {
   StandardFieldsConfig,
 } from "@/lib/types";
 import { STANDARD_FIELD_ORDER, STANDARD_FIELD_LABELS } from "@/lib/registration";
+import { EmptyState } from "@/components/empty-state";
+import { SectionCard } from "@/components/section-card";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 
@@ -34,15 +36,15 @@ export function EventRegistrationsTable({
   const statusM = useMutation({
     mutationFn: ({ regId, status }: { regId: string; status: RegistrationStatus }) =>
       eventsService.setRegistrationStatus(eventId, regId, status),
-    onSuccess: () => {
+    onSuccess: (_, v) => {
       qc.invalidateQueries({ queryKey: ["events", "registrations", eventId] });
-      toast.success("Updated");
+      toast.success(`Marked ${v.status.toLowerCase()}`);
     },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+    onError: (e) =>
+      toast.error("Couldn't update the registration", {
+        description: e instanceof ApiCallError ? e.message : undefined,
+      }),
   });
-
-  if (isLoading) return <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />;
-  if (!regs.length) return <p className="py-4 text-sm text-muted-foreground">No registrations yet.</p>;
 
   // Standard columns the event actually asks for. `fullName` is skipped — the
   // Registrant column already shows it.
@@ -63,46 +65,71 @@ export function EventRegistrationsTable({
     return String(v);
   };
 
+  const confirmed = regs.filter((r) => r.status === "CONFIRMED").length;
+
   return (
-    <div className="overflow-x-auto rounded-md border">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Registrant</TableHead>
-            <TableHead>Member ID</TableHead>
-            <TableHead>Type</TableHead>
-            {stdCols.map((k) => <TableHead key={k}>{STANDARD_FIELD_LABELS[k]}</TableHead>)}
-            {fields.map((f) => <TableHead key={f.key}>{f.label}</TableHead>)}
-            <TableHead>Status</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {regs.map((r) => (
-            <TableRow key={r.id}>
-              <TableCell className="font-medium">{name(r)}</TableCell>
-              <TableCell className="font-mono text-xs">{memberId(r)}</TableCell>
-              <TableCell className="text-xs text-muted-foreground">{r.registrantType}</TableCell>
-              {stdCols.map((k) => (
-                <TableCell key={k} className="text-xs">{snapshot(r, k)}</TableCell>
+    <SectionCard
+      title="Registrations"
+      description={
+        regs.length > 0
+          ? `${regs.length} registered · ${confirmed} confirmed`
+          : "Who has signed up, and what they answered."
+      }
+      icon={Users}
+      tone="violet"
+    >
+      {isLoading ? (
+        <div className="flex h-24 items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : regs.length === 0 ? (
+        <EmptyState
+          icon={Users}
+          title="No registrations yet"
+          description="Entries appear here as soon as members register for this event."
+        />
+      ) : (
+        <div className="overflow-x-auto rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Registrant</TableHead>
+                <TableHead>Member ID</TableHead>
+                <TableHead>Type</TableHead>
+                {stdCols.map((k) => <TableHead key={k}>{STANDARD_FIELD_LABELS[k]}</TableHead>)}
+                {fields.map((f) => <TableHead key={f.key}>{f.label}</TableHead>)}
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {regs.map((r) => (
+                <TableRow key={r.id}>
+                  <TableCell className="font-medium">{name(r)}</TableCell>
+                  <TableCell className="font-mono text-xs">{memberId(r)}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{r.registrantType}</TableCell>
+                  {stdCols.map((k) => (
+                    <TableCell key={k} className="text-xs">{snapshot(r, k)}</TableCell>
+                  ))}
+                  {fields.map((f) => (
+                    <TableCell key={f.key} className="text-xs">{String(r.answers?.[f.key] ?? "—")}</TableCell>
+                  ))}
+                  <TableCell>
+                    <Select
+                      value={r.status}
+                      onValueChange={(v) => statusM.mutate({ regId: r.id, status: v as RegistrationStatus })}
+                    >
+                      <SelectTrigger className="h-8 w-36"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                </TableRow>
               ))}
-              {fields.map((f) => (
-                <TableCell key={f.key} className="text-xs">{String(r.answers?.[f.key] ?? "—")}</TableCell>
-              ))}
-              <TableCell>
-                <Select
-                  value={r.status}
-                  onValueChange={(v) => statusM.mutate({ regId: r.id, status: v as RegistrationStatus })}
-                >
-                  <SelectTrigger className="h-8 w-36"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </SectionCard>
   );
 }

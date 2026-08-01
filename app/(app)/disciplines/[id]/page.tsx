@@ -10,6 +10,7 @@ import { ApiCallError } from "@/lib/api-client";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { LoadError } from "@/components/load-error";
 import { Button } from "@/components/ui/button";
 import { DisciplineForm, type DisciplineFormValues } from "../discipline-form";
 
@@ -34,19 +35,28 @@ export default function EditDisciplinePage() {
         selectionCriteria: v.selectionCriteria || undefined,
         history: v.history || undefined,
       }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["disciplines"] }); toast.success("Saved"); },
-    onError: (e) => toast.error(e instanceof ApiCallError ? e.message : "Failed"),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["disciplines"] }); toast.success("Discipline saved"); },
+    onError: (e) => toast.error("Couldn't save the discipline", { description: e instanceof ApiCallError ? e.message : undefined }),
   });
-  const publishM = useMutation({ mutationFn: () => disciplinesService.publish(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ["disciplines"] }); toast.success("Published"); } });
-  const unpublishM = useMutation({ mutationFn: () => disciplinesService.unpublish(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ["disciplines"] }); toast.success("Unpublished"); } });
-  const deleteM = useMutation({ mutationFn: () => disciplinesService.remove(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ["disciplines"] }); toast.success("Deleted"); router.push("/disciplines"); } });
+  const publishM = useMutation({
+    mutationFn: () => disciplinesService.publish(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["disciplines"] }); toast.success("Discipline published"); },
+    onError: (e) => toast.error("Couldn't publish", { description: e instanceof ApiCallError ? e.message : undefined }),
+  });
+  const unpublishM = useMutation({
+    mutationFn: () => disciplinesService.unpublish(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["disciplines"] }); toast.success("Discipline unpublished"); },
+    onError: (e) => toast.error("Couldn't unpublish", { description: e instanceof ApiCallError ? e.message : undefined }),
+  });
+  const deleteM = useMutation({
+    mutationFn: () => disciplinesService.remove(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["disciplines"] }); toast.success("Discipline deleted"); router.push("/disciplines"); },
+    onError: (e) => toast.error("Couldn't delete the discipline", { description: e instanceof ApiCallError ? e.message : undefined }),
+  });
 
   if (isLoading) return <div className="flex h-64 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
   if (isError || !item) return (
-    <div className="space-y-4">
-      <p className="text-destructive">Couldn't load this discipline.</p>
-      <Button variant="outline" onClick={() => router.push("/disciplines")}>Back</Button>
-    </div>
+    <LoadError title="Couldn't load this discipline" backLabel="Back to disciplines" onBack={() => router.push("/disciplines")} />
   );
 
   const pub = item.status === "PUBLISHED";
