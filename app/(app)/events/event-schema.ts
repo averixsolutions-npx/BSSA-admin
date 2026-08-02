@@ -31,6 +31,42 @@ export const eventSchema = z.object({
       })
     )
     .default([]),
+}).superRefine((v, ctx) => {
+  // Compare by calendar day (the pickers are date-only), ignoring blanks.
+  const day = (s?: string) => {
+    if (!s) return null;
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? null : new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  };
+  if (!v.registrationEnabled) return; // nothing to check when registration is off
+
+  const end = day(v.endDate);
+  const opens = day(v.registrationOpensAt);
+  const closes = day(v.registrationClosesAt);
+
+  if (opens !== null && closes !== null && closes < opens) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["registrationClosesAt"],
+      message: "This is before registration opens — pick a later date.",
+    });
+  }
+  if (end !== null) {
+    if (opens !== null && opens > end) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["registrationOpensAt"],
+        message: "Registration can't open after the event ends.",
+      });
+    }
+    if (closes !== null && closes > end) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["registrationClosesAt"],
+        message: "Registration can't close after the event ends.",
+      });
+    }
+  }
 });
 
 export type EventFormValues = z.infer<typeof eventSchema>;

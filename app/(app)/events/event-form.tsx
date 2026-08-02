@@ -301,7 +301,8 @@ export function EventForm({
             ) : (
               <>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <FormField label="Registration opens" error={errors.registrationOpensAt}>
+                  <FormField label="Registration opens" error={errors.registrationOpensAt}
+                    hint="On or before the event ends. Leave blank for no limit.">
                     <Controller
                       name="registrationOpensAt"
                       control={control}
@@ -310,11 +311,13 @@ export function EventForm({
                           value={field.value}
                           onChange={(v) => field.onChange(v ?? "")}
                           placeholder="No limit"
+                          max={watch("endDate") || undefined}
                         />
                       )}
                     />
                   </FormField>
-                  <FormField label="Registration closes" error={errors.registrationClosesAt}>
+                  <FormField label="Registration closes" error={errors.registrationClosesAt}
+                    hint="Must be on or after it opens, and by the event's end date.">
                     <Controller
                       name="registrationClosesAt"
                       control={control}
@@ -323,6 +326,7 @@ export function EventForm({
                           value={field.value}
                           onChange={(v) => field.onChange(v ?? "")}
                           placeholder="No limit"
+                          max={watch("endDate") || undefined}
                         />
                       )}
                     />

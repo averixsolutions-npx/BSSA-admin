@@ -64,8 +64,20 @@ function CalendarHeader({ month, setMonthDate }: { month: Date; setMonthDate: (d
   );
 }
 
-function MonthGrid({ month, selected, onSelect }: { month: Date; selected: Date | null; onSelect: (d: Date) => void }) {
+function MonthGrid({
+  month, selected, onSelect, min, max,
+}: {
+  month: Date; selected: Date | null; onSelect: (d: Date) => void;
+  min?: Date | null; max?: Date | null;
+}) {
   const days = eachDayOfInterval({ start: startOfWeek(startOfMonth(month)), end: endOfWeek(endOfMonth(month)) });
+  const dayStart = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const outOfRange = (d: Date) => {
+    const t = dayStart(d);
+    if (min && t < dayStart(min)) return true;
+    if (max && t > dayStart(max)) return true;
+    return false;
+  };
   return (
     <div className="grid grid-cols-7 gap-1">
       {WEEKDAYS.map((w) => (
@@ -74,15 +86,18 @@ function MonthGrid({ month, selected, onSelect }: { month: Date; selected: Date 
       {days.map((d) => {
         const inMonth = isSameMonth(d, month);
         const isSel = selected && isSameDay(d, selected);
+        const disabled = outOfRange(d);
         return (
           <button
             key={d.toISOString()}
             type="button"
-            onClick={() => onSelect(d)}
+            disabled={disabled}
+            onClick={() => !disabled && onSelect(d)}
             className={cn(
               "h-8 w-8 rounded-md text-sm transition-colors",
               !inMonth && "text-muted-foreground/40",
-              isSel ? "bg-primary text-primary-foreground" : "hover:bg-accent"
+              disabled && "cursor-not-allowed text-muted-foreground/30 line-through",
+              isSel ? "bg-primary text-primary-foreground" : !disabled && "hover:bg-accent"
             )}
           >
             {d.getDate()}
@@ -102,7 +117,9 @@ interface BaseProps {
   className?: string;
 }
 
-export function DatePicker({ value, onChange, placeholder = "Pick a date", id, disabled, className }: BaseProps) {
+export function DatePicker({
+  value, onChange, placeholder = "Pick a date", id, disabled, className, min, max,
+}: BaseProps & { min?: string | null; max?: string | null }) {
   const { open, setOpen, ref } = usePopover();
   const selected = value ? new Date(value) : null;
   const [month, setMonthDate] = React.useState<Date>(selected ?? new Date());
@@ -122,6 +139,8 @@ export function DatePicker({ value, onChange, placeholder = "Pick a date", id, d
           <MonthGrid
             month={month}
             selected={selected}
+            min={min ? new Date(min) : null}
+            max={max ? new Date(max) : null}
             onSelect={(d) => {
               // Local noon avoids any TZ day-shift for a date-only value.
               const picked = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0, 0);
