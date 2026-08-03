@@ -2,12 +2,10 @@
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft } from "lucide-react";
 
 import { eventsService } from "@/lib/services/events";
 import { ApiCallError } from "@/lib/api-client";
 import { PageHeader } from "@/components/page-header";
-import { Button } from "@/components/ui/button";
 import { EventForm, toRegistrationInput, type EventFormValues } from "../event-form";
 
 export default function NewEventPage() {
@@ -30,7 +28,9 @@ export default function NewEventPage() {
     onSuccess: (event) => {
       qc.invalidateQueries({ queryKey: ["events"] });
       toast.success("Event created as draft");
-      router.push(`/events/${event.id}`);
+      // ?new=1 tells the event page to land back in the form instead of the
+      // (empty, right now) registrations/results view.
+      router.push(`/events/${event.id}?new=1`);
     },
     onError: (err) => {
       toast.error("Couldn't create the event", {
@@ -41,12 +41,9 @@ export default function NewEventPage() {
 
   return (
     <div className="space-y-6">
-      <Button variant="ghost" size="sm" onClick={() => router.back()} className="-ml-2 mb-1">
-        <ArrowLeft className="h-4 w-4" /> Back
-      </Button>
       <PageHeader
         title="New event"
-        description="Create the event, then add results on the edit page once it's saved."
+        description="Walk through each step below — Cancel at any point exits without saving."
       />
       <EventForm
         onSubmit={async (values) => {

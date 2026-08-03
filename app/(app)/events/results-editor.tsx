@@ -12,6 +12,7 @@ import type { EventResult } from "@/lib/types";
 import { ApiCallError } from "@/lib/api-client";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
+import { FormField } from "@/components/form-field";
 import { SectionCard } from "@/components/section-card";
 import { Button } from "@/components/ui/button";
 import {
@@ -255,17 +256,32 @@ function AddResultDialog({
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <Input type="number" placeholder="Rank" {...register("rank")} />
-            <Input placeholder="Result *" {...register("resultValue")} />
+            <FormField label="Rank" required error={errors.rank} hint="Finishing position, e.g. 1">
+              <Input type="number" min={1} {...register("rank")} />
+            </FormField>
+            <FormField label="Result value" required error={errors.resultValue}
+              hint="Time, score, or distance — not the rank.">
+              <Input placeholder="e.g. 1:23.45 or 245.3 pts" {...register("resultValue")} />
+            </FormField>
           </div>
-          <Input placeholder="Athlete / Team *" {...register("athleteOrTeam")} />
+          <FormField label="Athlete / team name" required error={errors.athleteOrTeam}>
+            <Input placeholder="e.g. Aditya Gavali" {...register("athleteOrTeam")} />
+          </FormField>
           <div className="grid grid-cols-2 gap-3">
-            <Input placeholder="State" {...register("state")} />
-            <Input placeholder="Category" {...register("category")} />
+            <FormField label="State" hint="Optional">
+              <Input placeholder="e.g. Maharashtra" {...register("state")} />
+            </FormField>
+            <FormField label="Category" hint="Optional — e.g. U18, Men's Slalom">
+              <Input placeholder="e.g. Men's Slalom" {...register("category")} />
+            </FormField>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <Input placeholder="Timing" {...register("timing")} />
-            <Input placeholder="Remarks" {...register("remarks")} />
+            <FormField label="Timing" hint="Optional — race clock time">
+              <Input placeholder="e.g. 1:23.45" {...register("timing")} />
+            </FormField>
+            <FormField label="Remarks" hint="Optional notes">
+              <Input placeholder="e.g. DNF, DSQ, course record" {...register("remarks")} />
+            </FormField>
           </div>
 
           <div className="space-y-1.5">
@@ -288,12 +304,6 @@ function AddResultDialog({
               Links this placing to the member&apos;s public profile.
             </p>
           </div>
-
-          {(errors.rank || errors.athleteOrTeam || errors.resultValue) && (
-            <p className="text-xs text-destructive">
-              {errors.rank?.message || errors.athleteOrTeam?.message || errors.resultValue?.message}
-            </p>
-          )}
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
@@ -337,9 +347,9 @@ function InlineEditRow({
 
   return (
     <TableRow>
-      <TableCell><Input type="number" className="w-16 h-8 text-xs" {...register("rank")} /></TableCell>
+      <TableCell><Input type="number" min={1} title="Finishing position" className="w-16 h-8 text-xs" {...register("rank")} /></TableCell>
       <TableCell className="space-y-1">
-        <Input className="h-8 text-xs" {...register("athleteOrTeam")} />
+        <Input placeholder="Athlete / team name" title="Athlete / team name" className="h-8 text-xs" {...register("athleteOrTeam")} />
         <MemberTagCombobox
           size="sm"
           value={{
@@ -354,11 +364,11 @@ function InlineEditRow({
           }}
         />
       </TableCell>
-      <TableCell><Input className="h-8 text-xs" {...register("state")} /></TableCell>
-      <TableCell><Input className="h-8 text-xs" {...register("category")} /></TableCell>
-      <TableCell><Input className="h-8 text-xs" {...register("resultValue")} /></TableCell>
-      <TableCell><Input className="h-8 text-xs" {...register("timing")} /></TableCell>
-      <TableCell><Input className="h-8 text-xs" {...register("remarks")} /></TableCell>
+      <TableCell><Input placeholder="State" title="State" className="h-8 text-xs" {...register("state")} /></TableCell>
+      <TableCell><Input placeholder="Category" title="Category, e.g. U18, Men's Slalom" className="h-8 text-xs" {...register("category")} /></TableCell>
+      <TableCell><Input placeholder="Result value" title="Time, score, or distance — not the rank" className="h-8 text-xs" {...register("resultValue")} /></TableCell>
+      <TableCell><Input placeholder="Timing" title="Race clock time, e.g. 1:23.45" className="h-8 text-xs" {...register("timing")} /></TableCell>
+      <TableCell><Input placeholder="Remarks" title="Notes, e.g. DNF, DSQ" className="h-8 text-xs" {...register("remarks")} /></TableCell>
       <TableCell>
         <div className="flex gap-1">
           <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleSubmit(onSave)} disabled={saving} title="Save">

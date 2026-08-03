@@ -38,9 +38,19 @@ export const eventSchema = z.object({
     const d = new Date(s);
     return isNaN(d.getTime()) ? null : new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   };
-  if (!v.registrationEnabled) return; // nothing to check when registration is off
 
+  const start = day(v.startDate);
   const end = day(v.endDate);
+  if (start !== null && end !== null && end < start) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["endDate"],
+      message: "End date can't be before the start date.",
+    });
+  }
+
+  if (!v.registrationEnabled) return; // nothing further to check when registration is off
+
   const opens = day(v.registrationOpensAt);
   const closes = day(v.registrationClosesAt);
 

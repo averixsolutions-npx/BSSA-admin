@@ -2,18 +2,20 @@
 import * as React from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQuery } from "@tanstack/react-query";
 import {
-  CalendarDays, Clock, FileText, Info, ListChecks, Loader2, Send, UserPlus, Users,
+  CalendarDays, Check, ChevronLeft, ChevronRight, Clock, FileText, Info, ListChecks,
+  Loader2, Send, UserPlus, Users,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import type { Event, RegistrantType } from "@/lib/types";
 import { eventSchema, type EventFormValues } from "./event-schema";
+import { disciplinesService } from "@/lib/services/disciplines";
 import { FormField } from "@/components/form-field";
 import { FileDropzone } from "@/components/file-dropzone";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import { SectionCard } from "@/components/section-card";
-import { Disclosure } from "@/components/disclosure";
 import { StatusBadge } from "@/components/status-badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
@@ -21,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { DatePicker } from "@/components/ui/date-picker";
 import { DEFAULT_STANDARD_FIELDS } from "@/lib/registration";
 import {
@@ -29,29 +32,33 @@ import {
 } from "@/components/registration/registration-form-editor";
 import { cn } from "@/lib/utils";
 
+// Sentinel for "no discipline tag" — Radix Select can't carry an empty-string value.
+const NO_DISCIPLINE = "__none__";
+
 export { toRegistrationInput, type EventFormValues } from "./event-schema";
 
-type TabKey = "details" | "schedule" | "publishing" | "registration";
+// Publishing sits last — it's the one step that only makes sense once
+// everything else is decided.
+type TabKey = "details" | "schedule" | "registration" | "publishing";
 
-// Which tab owns which field — drives the error dot on the tab trigger and the
-// jump-to-first-error on a failed submit. A validation failure on a hidden tab
-// would otherwise look like a dead Save button.
+// Which step owns which field — drives the error dot on the step chip and
+// blocks "Next" until the current step is actually valid.
 const TAB_FIELDS: Record<TabKey, readonly (keyof EventFormValues)[]> = {
   details: ["title", "venue", "address", "disciplineTag", "description"],
   schedule: ["startDate", "endDate"],
-  publishing: ["resultsPdfUrl"],
   registration: [
     "registrationOpensAt", "registrationClosesAt", "allowedRegistrants",
     "standardFields", "registrationFields",
   ],
+  publishing: ["resultsPdfUrl"],
 };
 
-const TAB_ORDER: TabKey[] = ["details", "schedule", "publishing", "registration"];
+const TAB_ORDER: TabKey[] = ["details", "schedule", "registration", "publishing"];
 const TAB_LABELS: Record<TabKey, string> = {
   details: "Details",
   schedule: "Schedule",
-  publishing: "Publishing",
   registration: "Registration",
+  publishing: "Publishing",
 };
 
 interface EventFormProps {
@@ -66,6 +73,10 @@ interface EventFormProps {
 export function EventForm({
   initialValues, onSubmit, onCancel, submitting, submitLabel = "Save", lockedFieldKeys = [],
 }: EventFormProps) {
+  // A brand-new event walks step by step; an existing one already has data on
+  // every step, so it stays freely browsable.
+  const isCreating = !initialValues?.id;
+
   const form = useForm<EventFormValues>({
     resolver: zodResolver(eventSchema),
     defaultValues: {
@@ -98,20 +109,29 @@ export function EventForm({
       })),
     },
   });
-  const { register, control, watch, setValue, handleSubmit, formState: { errors } } = form;
+  const { register, control, watch, setValue, handleSubmit, trigger, formState: { errors } } = form;
 
   const [tab, setTab] = React.useState<TabKey>("details");
+  // Highest step index reached — in create mode this is the wall that keeps a
+  // step chip locked until everything before it is valid.
+  const [maxStepIndex, setMaxStepIndex] = React.useState(0);
   const [formEditorOpen, setFormEditorOpen] = React.useState(false);
 
   const registrationEnabled = watch("registrationEnabled");
   const standardFields = watch("standardFields");
   const registrationFields = watch("registrationFields");
+  const startDate = watch("startDate");
+  const endDate = watch("endDate");
+
+  const { data: disciplines = [], isLoading: disciplinesLoading } = useQuery({
+    queryKey: ["disciplines", "list"],
+    queryFn: () => disciplinesService.list(),
+  });
 
   const tabHasError = (key: TabKey) => TAB_FIELDS[key].some((field) => !!errors[field]);
 
-  // Optional metadata starts open only when it already holds a value (P2).
-  const hasOptionalDetails = Boolean(initialValues?.address || initialValues?.disciplineTag);
-  const optionalDetailsInvalid = Boolean(errors.address || errors.disciplineTag);
+  const currentIndex = TAB_ORDER.indexOf(tab);
+  const isLastStep = currentIndex === TAB_ORDER.length - 1;
 
   const onInvalid = () => {
     const firstBadTab = TAB_ORDER.find((key) => TAB_FIELDS[key].some((f) => !!errors[f]));
@@ -121,28 +141,79 @@ export function EventForm({
     });
   };
 
+  // "Next" only validates the fields that live on the current step, so an
+  // error further down the form never blocks progress on the step you're on.
+  const handleNext = async () => {
+    const ok = await trigger(TAB_FIELDS[tab] as (keyof EventFormValues)[]);
+    if (!ok) {
+      toast.error("Check the highlighted fields", {
+        description: `Something needs fixing on ${TAB_LABELS[tab]} before you can continue.`,
+      });
+      return;
+    }
+    const next = TAB_ORDER[currentIndex + 1];
+    if (next) {
+      setMaxStepIndex((i) => Math.max(i, currentIndex + 1));
+      setTab(next);
+    }
+  };
+
+  const handleBack = () => {
+    const prev = TAB_ORDER[currentIndex - 1];
+    if (prev) setTab(prev);
+  };
+
   return (
     <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="max-w-3xl space-y-5">
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
-        <TabsList>
-          {TAB_ORDER.map((key) => (
-            <TabsTrigger key={key} value={key}>
-              {TAB_LABELS[key]}
-              {tabHasError(key) && (
+        <TabsList className="h-auto w-full items-stretch justify-between gap-1.5 rounded-none bg-transparent p-0 sm:gap-2">
+          {TAB_ORDER.map((key, i) => {
+            const locked = isCreating && i > maxStepIndex;
+            const done = i < currentIndex;
+            return (
+              <TabsTrigger
+                key={key}
+                value={key}
+                disabled={locked}
+                title={locked ? "Finish the previous step first" : undefined}
+                className={cn(
+                  "group flex flex-1 flex-col items-center gap-1.5 rounded-lg border bg-card px-2 py-2.5 text-center",
+                  "shadow-none transition-colors data-[state=active]:shadow-sm",
+                  "data-[state=active]:border-primary data-[state=active]:bg-primary/5",
+                  locked ? "cursor-not-allowed opacity-40" : "hover:bg-muted/40"
+                )}
+              >
                 <span
-                  className="h-1.5 w-1.5 rounded-full bg-destructive"
-                  aria-label={`${TAB_LABELS[key]} has errors`}
-                />
-              )}
-              {key === "registration" && registrationEnabled && !tabHasError("registration") && (
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-label="Registration is on" />
-              )}
-            </TabsTrigger>
-          ))}
+                  className={cn(
+                    "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold transition-colors",
+                    done
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : tab === key
+                      ? "border-primary text-primary"
+                      : "border-muted-foreground/30 text-muted-foreground"
+                  )}
+                >
+                  {done ? <Check className="h-3.5 w-3.5" /> : i + 1}
+                </span>
+                <span className="inline-flex items-center gap-1 text-xs font-medium">
+                  {TAB_LABELS[key]}
+                  {tabHasError(key) && (
+                    <span
+                      className="h-1.5 w-1.5 rounded-full bg-destructive"
+                      aria-label={`${TAB_LABELS[key]} has errors`}
+                    />
+                  )}
+                  {key === "registration" && registrationEnabled && !tabHasError("registration") && (
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-label="Registration is on" />
+                  )}
+                </span>
+              </TabsTrigger>
+            );
+          })}
         </TabsList>
 
         {/* ── Details ───────────────────────────────── */}
-        <TabsContent value="details" className="mt-5 space-y-5">
+        <TabsContent value="details" className="mt-5 space-y-5 slide-in-from-right-1">
           <SectionCard
             title="Event details"
             description="What the event is and where it happens."
@@ -157,22 +228,34 @@ export function EventForm({
               <Input {...register("venue")} placeholder="e.g. Auli, Uttarakhand" />
             </FormField>
 
-            <Disclosure
-              label="Add optional details"
-              openLabel="Hide optional details"
-              count={2}
-              defaultOpen={hasOptionalDetails}
-              forceOpen={optionalDetailsInvalid}
-              forceOpenReason="fix the errors below"
-              contentClassName="space-y-5 pt-1"
-            >
-              <FormField label="Address" error={errors.address} hint="Full postal address, if you have one.">
-                <Input {...register("address")} />
-              </FormField>
-              <FormField label="Discipline tag" error={errors.disciplineTag} hint="e.g. Alpine, Cross-Country">
-                <Input {...register("disciplineTag")} />
-              </FormField>
-            </Disclosure>
+            <FormField label="Address" error={errors.address} hint="Full postal address, if you have one.">
+              <Input {...register("address")} />
+            </FormField>
+
+            <FormField label="Discipline tag" error={errors.disciplineTag}
+              hint={disciplines.length === 0 ? "No disciplines set up yet — add one under Disciplines first." : undefined}>
+              <Controller
+                name="disciplineTag"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    value={field.value || NO_DISCIPLINE}
+                    onValueChange={(v) => field.onChange(v === NO_DISCIPLINE ? "" : v)}
+                    disabled={disciplinesLoading}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={disciplinesLoading ? "Loading disciplines…" : "Select a discipline"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_DISCIPLINE}>No discipline tag</SelectItem>
+                      {disciplines.map((d) => (
+                        <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </FormField>
           </SectionCard>
 
           <SectionCard
@@ -196,7 +279,7 @@ export function EventForm({
         </TabsContent>
 
         {/* ── Schedule ──────────────────────────────── */}
-        <TabsContent value="schedule" className="mt-5 space-y-5">
+        <TabsContent value="schedule" className="mt-5 space-y-5 slide-in-from-right-1">
           <SectionCard
             title="When it runs"
             description="Both are required — the public calendar sorts on them."
@@ -209,16 +292,24 @@ export function EventForm({
                   name="startDate"
                   control={control}
                   render={({ field }) => (
-                    <DatePicker value={field.value} onChange={(v) => field.onChange(v ?? "")} />
+                    <DatePicker
+                      value={field.value}
+                      onChange={(v) => field.onChange(v ?? "")}
+                      max={endDate || undefined}
+                    />
                   )}
                 />
               </FormField>
-              <FormField label="End date" required error={errors.endDate}>
+              <FormField label="End date" required error={errors.endDate} hint="On or after the start date.">
                 <Controller
                   name="endDate"
                   control={control}
                   render={({ field }) => (
-                    <DatePicker value={field.value} onChange={(v) => field.onChange(v ?? "")} />
+                    <DatePicker
+                      value={field.value}
+                      onChange={(v) => field.onChange(v ?? "")}
+                      min={startDate || undefined}
+                    />
                   )}
                 />
               </FormField>
@@ -226,54 +317,8 @@ export function EventForm({
           </SectionCard>
         </TabsContent>
 
-        {/* ── Publishing ────────────────────────────── */}
-        <TabsContent value="publishing" className="mt-5 space-y-5">
-          <SectionCard
-            title="Visibility"
-            description="Where this event sits in the publish flow."
-            icon={Send}
-            tone="amber"
-            action={initialValues?.status ? <StatusBadge status={initialValues.status} /> : undefined}
-          >
-            <Alert variant="info">
-              <Info />
-              <div className="space-y-1">
-                <AlertTitle>
-                  {initialValues?.status === "PUBLISHED" ? "Live on the public site" : "Not published yet"}
-                </AlertTitle>
-                <AlertDescription>
-                  {initialValues?.id
-                    ? "Use Publish / Unpublish in the page header — saving here never changes visibility."
-                    : "New events are created as a draft. Publish it from the event page once the details are right."}
-                </AlertDescription>
-              </div>
-            </Alert>
-          </SectionCard>
-
-          <SectionCard
-            title="Results document"
-            description="Optional official results PDF, linked from the public event page."
-            icon={FileText}
-            tone="slate"
-          >
-            <Controller
-              name="resultsPdfUrl"
-              control={control}
-              render={({ field }) => (
-                <FileDropzone
-                  folder="events"
-                  accept={["application/pdf"]}
-                  value={field.value}
-                  onChange={field.onChange}
-                  emptyLabel="Attach results PDF"
-                />
-              )}
-            />
-          </SectionCard>
-        </TabsContent>
-
         {/* ── Registration ──────────────────────────── */}
-        <TabsContent value="registration" className="mt-5 space-y-5">
+        <TabsContent value="registration" className="mt-5 space-y-5 slide-in-from-right-1">
           <SectionCard
             title="Registration"
             description="Let members register for this event and choose what details they must provide."
@@ -311,7 +356,7 @@ export function EventForm({
                           value={field.value}
                           onChange={(v) => field.onChange(v ?? "")}
                           placeholder="No limit"
-                          max={watch("endDate") || undefined}
+                          max={endDate || undefined}
                         />
                       )}
                     />
@@ -326,7 +371,7 @@ export function EventForm({
                           value={field.value}
                           onChange={(v) => field.onChange(v ?? "")}
                           placeholder="No limit"
-                          max={watch("endDate") || undefined}
+                          max={endDate || undefined}
                         />
                       )}
                     />
@@ -404,17 +449,77 @@ export function EventForm({
             </>
           )}
         </TabsContent>
+
+        {/* ── Publishing ────────────────────────────── */}
+        <TabsContent value="publishing" className="mt-5 space-y-5 slide-in-from-right-1">
+          <SectionCard
+            title="Visibility"
+            description="Where this event sits in the publish flow."
+            icon={Send}
+            tone="amber"
+            action={initialValues?.status ? <StatusBadge status={initialValues.status} /> : undefined}
+          >
+            <Alert variant="info">
+              <Info />
+              <div className="space-y-1">
+                <AlertTitle>
+                  {initialValues?.status === "PUBLISHED" ? "Live on the public site" : "Not published yet"}
+                </AlertTitle>
+                <AlertDescription>
+                  {initialValues?.id
+                    ? "Use Publish / Unpublish in the page header — saving here never changes visibility."
+                    : "New events are created as a draft. Publish it from the event page once the details are right."}
+                </AlertDescription>
+              </div>
+            </Alert>
+          </SectionCard>
+
+          <SectionCard
+            title="Results document"
+            description="Optional official results PDF, linked from the public event page."
+            icon={FileText}
+            tone="slate"
+          >
+            <Controller
+              name="resultsPdfUrl"
+              control={control}
+              render={({ field }) => (
+                <FileDropzone
+                  folder="events"
+                  accept={["application/pdf"]}
+                  value={field.value}
+                  onChange={field.onChange}
+                  emptyLabel="Attach results PDF"
+                />
+              )}
+            />
+          </SectionCard>
+        </TabsContent>
       </Tabs>
 
-      {/* Save stays reachable from every tab. */}
-      <div className="sticky bottom-0 z-10 flex items-center gap-2 rounded-lg border bg-card/95 p-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/80">
-        <Button type="submit" disabled={submitting}>
-          {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {submitLabel}
-        </Button>
-        <Button type="button" variant="outline" onClick={onCancel} disabled={submitting}>
+      {/* Step nav stays reachable from every step — Next until the last step, then submit. */}
+      <div className="sticky bottom-0 z-10 flex items-center gap-2 rounded-lg border bg-card/95 p-3 shadow-sm backdrop-blur transition-all duration-200 supports-[backdrop-filter]:bg-card/80">
+        {currentIndex > 0 && (
+          <Button type="button" variant="outline" onClick={handleBack} disabled={submitting}>
+            <ChevronLeft className="h-4 w-4" /> Back
+          </Button>
+        )}
+
+        {!isLastStep ? (
+          <Button type="button" onClick={handleNext} disabled={submitting}>
+            Next <ChevronRight className="h-4 w-4" />
+          </Button>
+        ) : (
+          <Button type="submit" disabled={submitting}>
+            {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {submitLabel}
+          </Button>
+        )}
+
+        <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>
           Cancel
         </Button>
+
         {TAB_ORDER.some(tabHasError) && (
           <span className="text-sm text-destructive">Some fields need attention.</span>
         )}

@@ -39,6 +39,17 @@ export function isDefaultForm(
   return true;
 }
 
+// True when a registrant would see no fields at all — reused by the publish
+// guard (against the stored Event shape) as well as the live form draft, so
+// the field list is typed loosely: only its length is ever inspected.
+export function isRegistrationFormEmpty(
+  standardFields: StandardFieldsConfig,
+  fields: { length: number }
+): boolean {
+  const cfg = { ...DEFAULT_STANDARD_FIELDS, ...standardFields };
+  return STANDARD_FIELD_ORDER.every((k) => !cfg[k]?.show) && fields.length === 0;
+}
+
 /** Read-only summary of exactly what a registrant will see. No editing here. */
 export function RegistrationFormSummary({
   standardFields, fields, onEdit,
@@ -50,7 +61,7 @@ export function RegistrationFormSummary({
   const cfg = { ...DEFAULT_STANDARD_FIELDS, ...standardFields };
   const shownStd = STANDARD_FIELD_ORDER.filter((k) => cfg[k]?.show);
   const isDefault = isDefaultForm(standardFields, fields);
-  const empty = shownStd.length === 0 && fields.length === 0;
+  const empty = isRegistrationFormEmpty(standardFields, fields);
 
   return (
     <div className="space-y-4">

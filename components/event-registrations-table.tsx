@@ -1,6 +1,6 @@
 "use client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Users, ExternalLink } from "lucide-react";
+import { Loader2, Users, ExternalLink, Download } from "lucide-react";
 import { toast } from "sonner";
 
 import { eventsService } from "@/lib/services/events";
@@ -14,8 +14,14 @@ import type {
 import { STANDARD_FIELD_ORDER, STANDARD_FIELD_LABELS } from "@/lib/registration";
 import { EmptyState } from "@/components/empty-state";
 import { SectionCard } from "@/components/section-card";
+import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+
+// One CSV cell, quoted and with internal quotes escaped.
+function csvCell(v: string): string {
+  return `"${v.replace(/"/g, '""')}"`;
+}
 
 const STATUSES: RegistrationStatus[] = ["PENDING", "CONFIRMED", "WAITLISTED", "CANCELLED"];
 
@@ -78,6 +84,30 @@ export function EventRegistrationsTable({
 
   const confirmed = regs.filter((r) => r.status === "CONFIRMED").length;
 
+  const handleExport = () => {
+    const headers = [
+      "Registrant", "Member ID", "Type",
+      ...stdCols.map((k) => STANDARD_FIELD_LABELS[k]),
+      ...fields.map((f) => f.label),
+      "Status",
+    ];
+    const rows = regs.map((r) => [
+      name(r), memberId(r), r.registrantType,
+      ...stdCols.map((k) => snapshot(r, k)),
+      ...fields.map((f) => String(r.answers?.[f.key] ?? "")),
+      r.status,
+    ]);
+    const csv = [headers, ...rows].map((row) => row.map((c) => csvCell(String(c))).join(",")).join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `registrations-${eventId}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("CSV downloaded");
+  };
+
   return (
     <SectionCard
       title="Registrations"
@@ -88,6 +118,13 @@ export function EventRegistrationsTable({
       }
       icon={Users}
       tone="violet"
+      action={
+        regs.length > 0 ? (
+          <Button size="sm" variant="outline" onClick={handleExport}>
+            <Download className="h-4 w-4" /> Download CSV
+          </Button>
+        ) : undefined
+      }
     >
       {isLoading ? (
         <div className="flex h-24 items-center justify-center">
