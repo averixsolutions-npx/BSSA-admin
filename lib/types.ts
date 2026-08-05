@@ -130,10 +130,13 @@ export interface MediaItem {
   updatedAt: string;
 }
 
+export type DisciplineCategory = "ALPINE" | "SNOWBOARD" | "NORDIC" | "OTHER";
+
 export interface Discipline {
   id: string;
   slug: string;
   name: string;
+  category: DisciplineCategory;
   bannerUrl: string | null;
   description: string | null;
   selectionCriteria: string | null;

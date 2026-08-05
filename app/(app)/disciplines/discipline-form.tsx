@@ -11,10 +11,12 @@ import { RichTextEditor } from "@/components/rich-text-editor";
 import { SectionCard } from "@/components/section-card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const disciplineSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(120),
+  category: z.enum(["ALPINE", "SNOWBOARD", "NORDIC", "OTHER"]),
   bannerUrl: z.string().url().nullable().optional(),
   description: z.string().optional().or(z.literal("")),
   selectionCriteria: z.string().optional().or(z.literal("")),
@@ -31,6 +33,13 @@ const CONTENT_TABS = [
   { key: "history", label: "History", placeholder: "History and notable athletes…" },
 ] as const;
 
+const CATEGORY_OPTIONS = [
+  { value: "ALPINE", label: "Alpine Skiing" },
+  { value: "SNOWBOARD", label: "Snowboarding" },
+  { value: "NORDIC", label: "Nordic (Cross-Country)" },
+  { value: "OTHER", label: "Others (Freeski / Cross / Jumping, etc.)" },
+] as const;
+
 interface DisciplineFormProps {
   initialValues?: Partial<Discipline>;
   onSubmit: (v: DisciplineFormValues) => Promise<void>;
@@ -44,6 +53,7 @@ export function DisciplineForm({ initialValues, onSubmit, onCancel, submitting, 
     resolver: zodResolver(disciplineSchema),
     defaultValues: {
       name: initialValues?.name ?? "",
+      category: initialValues?.category ?? "OTHER",
       bannerUrl: initialValues?.bannerUrl ?? null,
       description: initialValues?.description ?? "",
       selectionCriteria: initialValues?.selectionCriteria ?? "",
@@ -61,6 +71,23 @@ export function DisciplineForm({ initialValues, onSubmit, onCancel, submitting, 
       >
         <FormField label="Name" required error={errors.name}>
           <Input {...register("name")} />
+        </FormField>
+
+        <FormField label="Category" required error={errors.category} hint="Groups this discipline into one of the four public buckets.">
+          <Controller
+            name="category"
+            control={control}
+            render={({ field }) => (
+              <Select value={field.value} onValueChange={field.onChange}>
+                <SelectTrigger><SelectValue placeholder="Select a category" /></SelectTrigger>
+                <SelectContent>
+                  {CATEGORY_OPTIONS.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
         </FormField>
 
         <FormField label="Banner image" hint="Optional. Shown at the top of the discipline page.">
