@@ -145,6 +145,17 @@ export interface Discipline {
   status: ContentStatus;
 }
 
+export interface CalendarEntry {
+  id: string;
+  name: string;
+  eventDate: string;   // ISO string
+  location: string;
+  status: ContentStatus;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Program {
   id: string;
   slug: string;
