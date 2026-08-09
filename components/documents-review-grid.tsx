@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { FileCheck2, FileX, Lock } from "lucide-react";
+import { FileCheck2, FileX, FileText, Lock } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,12 +13,29 @@ import { DocumentReviewDialog } from "@/components/document-review-dialog";
 import type { VerificationStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+// A document may be an image (JPG/PNG/WebP) or a PDF — the upload flow allows both.
+// <img> can't render a PDF (that's what produced the "doc icon only" bug), so we
+// detect PDFs and give them their own tile + iframe preview. fileKey carries the
+// real extension set at presign time; the presigned viewUrl is the fallback.
+function isPdfDoc(doc: { fileKey?: string; viewUrl?: string }): boolean {
+  const key = (doc.fileKey ?? "").toLowerCase();
+  if (key.endsWith(".pdf")) return true;
+  try {
+    // viewUrl is presigned with query params; check only the path segment.
+    const path = new URL(doc.viewUrl ?? "").pathname.toLowerCase();
+    return path.endsWith(".pdf");
+  } catch {
+    return false;
+  }
+}
+
 export interface ReviewableDoc {
   id: string;
   type: string; // enum value
   status: VerificationStatus;
   reviewNote: string | null;
   viewUrl: string;
+  fileKey: string; // used to detect PDF vs image for correct preview rendering
 }
 
 interface Props<DocType extends string, Doc extends ReviewableDoc> {
@@ -62,6 +79,7 @@ export function DocumentsReviewGrid<DocType extends string, Doc extends Reviewab
   const lightboxImages: LightboxImage[] = uploadedDocs.map((d) => ({
     url: d.viewUrl,
     label: labels[d.type as DocType],
+    isPdf: isPdfDoc(d),
   }));
 
   const approvedMandatoryCount = mandatoryTypes.filter(
@@ -104,6 +122,8 @@ export function DocumentsReviewGrid<DocType extends string, Doc extends Reviewab
         ? "border-red-500/50"
         : "border-amber-500/40";
 
+    const pdf = isPdfDoc(doc);
+
     return (
       <div key={type} className={cn("overflow-hidden rounded-xl border-2 bg-card", border)}>
         <button
@@ -112,13 +132,24 @@ export function DocumentsReviewGrid<DocType extends string, Doc extends Reviewab
           className="group relative block aspect-[4/3] w-full overflow-hidden bg-muted"
           title={`Open ${label}`}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={doc.viewUrl}
-            alt={label}
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-          />
-          <span className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/20" />
+          {pdf ? (
+            // PDFs can't render in <img>. Show a clear document tile that still
+            // opens the file (via the lightbox, which handles PDFs in an iframe).
+            <span className="flex h-full w-full flex-col items-center justify-center gap-2 bg-muted/60 text-muted-foreground transition-colors group-hover:bg-muted">
+              <FileText className="h-8 w-8" />
+              <span className="text-[11px] font-medium">PDF · click to open</span>
+            </span>
+          ) : (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={doc.viewUrl}
+                alt={label}
+                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+              />
+              <span className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/20" />
+            </>
+          )}
         </button>
 
         <div className="space-y-1 border-t px-3 py-2">
