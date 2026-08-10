@@ -6,6 +6,7 @@ import {
   Loader2, ArrowLeft, Award, Lock, Medal, ShieldAlert, UserRound,
 } from "lucide-react";
 import { toast } from "sonner";
+import { format, formatDistanceToNow } from "date-fns";
 
 import { athletesAdminService } from "@/lib/services/athletes-admin";
 import { athleteDocumentsService } from "@/lib/services/athlete-documents";
@@ -17,6 +18,9 @@ import {
   requiredDocTypesFor,
   visibleDocTypesFor,
   type AthleteAchievement,
+  type AthleteDocument,
+  type AthleteDocumentType,
+  type AthleteProfile,
   type MemberPastResult,
   type VerificationStatus,
 } from "@/lib/types";
@@ -44,6 +48,150 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+
+// Compact timing strip for the admin: when the athlete registered, when they
+// last touched their profile, and when (if ever) they submitted. All three
+// fields already come back on the profile object — this is pure display.
+function TimingStrip({
+  createdAt,
+  updatedAt,
+  submittedAt,
+}: {
+  createdAt: string;
+  updatedAt: string;
+  submittedAt: string | null;
+}) {
+  const item = (label: string, iso: string | null) => (
+    <div className="flex flex-col">
+      <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">{label}</span>
+      {iso ? (
+        <span className="text-sm text-foreground" title={format(new Date(iso), "d MMM yyyy, HH:mm")}>
+          {format(new Date(iso), "d MMM yyyy")}{" "}
+          <span className="text-xs text-muted-foreground">
+            ({formatDistanceToNow(new Date(iso), { addSuffix: true })})
+          </span>
+        </span>
+      ) : (
+        <span className="text-sm text-muted-foreground">—</span>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="flex flex-wrap gap-x-8 gap-y-3 rounded-lg border border-border bg-card px-4 py-3">
+      {item("Registered", createdAt)}
+      {item("Last active", updatedAt)}
+      {item("Submitted", submittedAt)}
+    </div>
+  );
+}
+
+// DRAFT-only breakdown of what the athlete still hasn't completed. Helps the
+// admin see why a draft is stuck (and, if they want, nudge the athlete). Uses
+// the same mandatory-field list the athlete's own wizard enforces, plus the
+// required document types for their chosen Aadhaar layout.
+function DraftGapReport({
+  profile,
+  documents,
+  requiredTypes,
+  labels,
+}: {
+  profile: AthleteProfile;
+  documents: AthleteDocument[];
+  requiredTypes: AthleteDocumentType[];
+  labels: Record<string, string>;
+}) {
+  // Mandatory profile fields — mirrors the athlete-side Step 1 gate.
+  const missingFields: string[] = [
+    !profile.photoUrl && "Profile photo",
+    !profile.firstName && "First name",
+    !profile.lastName && "Last name",
+    !profile.dob && "Date of birth",
+    !profile.gender && "Gender",
+    (profile.disciplines?.length ?? 0) === 0 && "Discipline",
+    !profile.state && "State",
+    !profile.account?.mobile && "WhatsApp number",
+  ].filter(Boolean) as string[];
+
+  const aadhaarAnswered = profile.aadhaarLayout !== null && profile.aadhaarLayout !== undefined;
+
+  // Required documents not yet uploaded (any status counts as "uploaded" here —
+  // this report is about what's MISSING, not what's approved).
+  const missingDocs = aadhaarAnswered
+    ? requiredTypes.filter((t) => !documents.some((d) => d.type === t)).map((t) => labels[t] ?? t)
+    : [];
+
+  const nothingMissing =
+    missingFields.length === 0 && aadhaarAnswered && missingDocs.length === 0;
+
+  return (
+    <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-4">
+      <div className="mb-3 flex items-center gap-2">
+        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-500/20 text-amber-600">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
+            <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+        </span>
+        <div>
+          <p className="text-sm font-semibold text-foreground">Draft — not yet submitted</p>
+          <p className="text-xs text-muted-foreground">
+            What this athlete still needs to complete before their profile can be submitted.
+          </p>
+        </div>
+      </div>
+
+      {nothingMissing ? (
+        <p className="text-sm text-foreground">
+          Everything required is filled in and all required documents are uploaded — the
+          athlete just hasn&apos;t pressed submit yet.
+        </p>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div>
+            <p className="mb-1 text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+              Profile fields
+            </p>
+            {missingFields.length === 0 ? (
+              <p className="text-sm text-emerald-600">All complete</p>
+            ) : (
+              <ul className="space-y-0.5 text-sm text-foreground">
+                {missingFields.map((f) => (
+                  <li key={f}>· {f}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div>
+            <p className="mb-1 text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+              Aadhaar question
+            </p>
+            <p className={`text-sm ${aadhaarAnswered ? "text-emerald-600" : "text-foreground"}`}>
+              {aadhaarAnswered ? "Answered" : "Not answered yet"}
+            </p>
+          </div>
+
+          <div>
+            <p className="mb-1 text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+              Required documents
+            </p>
+            {!aadhaarAnswered ? (
+              <p className="text-sm text-muted-foreground">Pending Aadhaar answer</p>
+            ) : missingDocs.length === 0 ? (
+              <p className="text-sm text-emerald-600">All uploaded</p>
+            ) : (
+              <ul className="space-y-0.5 text-sm text-foreground">
+                {missingDocs.map((d) => (
+                  <li key={d}>· {d}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function AthleteDetailPage() {
   const router = useRouter();
@@ -293,6 +441,21 @@ export default function AthleteDetailPage() {
           </>
         }
       />
+
+      <TimingStrip
+        createdAt={profile.createdAt}
+        updatedAt={profile.updatedAt}
+        submittedAt={profile.submittedAt}
+      />
+
+      {profile.submissionStatus === "DRAFT" && (
+        <DraftGapReport
+          profile={profile}
+          documents={documents}
+          requiredTypes={requiredTypes}
+          labels={DOCUMENT_TYPE_LABELS}
+        />
+      )}
 
       {/* ── Why you're here: the review verdict ── */}
       <ApproveRejectBar
