@@ -17,6 +17,7 @@ import { AccountStatusBadge } from "@/components/account-status-badge";
 import { SubmissionStatusBadge } from "@/components/submission-status-badge";
 import { StatusFilterChips, QUEUE_BUCKETS, type QueueBucket } from "@/components/status-filter-chips";
 import { useQueueCounts } from "@/components/hooks/use-queue-counts";
+import { AthletesExportDialog } from "@/components/athletes-export-dialog";
 
 export default function AthletesListPage() {
   const router = useRouter();
@@ -155,7 +156,10 @@ export default function AthletesListPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Athletes" description="Registered athletes. Review submissions and manage visibility." />
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <PageHeader title="Athletes" description="Registered athletes. Review submissions and manage visibility." />
+        <AthletesExportDialog />
+      </div>
       <StatusFilterChips value={bucket} onChange={setBucket} counts={counts.data} />
       <DataTable
         columns={columns}
