@@ -8,6 +8,7 @@ import { Plus, Pencil, Trash2, Loader2, Save, X, Link2, Trophy } from "lucide-re
 import { toast } from "sonner";
 
 import { eventsService } from "@/lib/services/events";
+import { referenceService } from "@/lib/services/reference";
 import type { EventResult } from "@/lib/types";
 import { ApiCallError } from "@/lib/api-client";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -19,6 +20,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { MemberTagCombobox } from "@/components/registration/member-tag-combobox";
 
@@ -243,6 +245,17 @@ function AddResultDialog({
     },
   });
 
+  const { data: states = [] } = useQuery({
+    queryKey: ["reference", "states"],
+    queryFn: () => referenceService.states(),
+    staleTime: Infinity,
+  });
+  const { data: categories = [] } = useQuery({
+    queryKey: ["reference", "result-categories"],
+    queryFn: () => referenceService.resultCategories(),
+    staleTime: Infinity,
+  });
+
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[85vh] overflow-y-auto">
@@ -269,10 +282,20 @@ function AddResultDialog({
           </FormField>
           <div className="grid grid-cols-2 gap-3">
             <FormField label="State" hint="Optional">
-              <Input placeholder="e.g. Maharashtra" {...register("state")} />
+              <SearchableCombobox
+                value={watch("state") ?? ""}
+                onChange={(v) => setValue("state", v, { shouldValidate: true })}
+                options={states.map((s) => s.name)}
+                placeholder="Search a state…"
+              />
             </FormField>
             <FormField label="Category" hint="Optional — e.g. U18, Men's Slalom">
-              <Input placeholder="e.g. Men's Slalom" {...register("category")} />
+              <SearchableCombobox
+                value={watch("category") ?? ""}
+                onChange={(v) => setValue("category", v, { shouldValidate: true })}
+                options={categories}
+                placeholder="Search or type a category…"
+              />
             </FormField>
           </div>
           <div className="grid grid-cols-2 gap-3">
